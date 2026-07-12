@@ -172,62 +172,69 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 .limit-warning{color:var(--red)!important;}
 .limit-ok{color:var(--green)!important;}
 
-/* ---- PIN LOCK ---- */
+/* ---- AUTH OVERLAY ---- */
+#auth-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:24px;}
+#auth-overlay.hidden{display:none;}
+.auth-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px 28px;width:100%;max-width:380px;}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:16px 0;}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.auth-divider span{font-size:12px;color:var(--text-muted);}
+.btn-google{background:#fff;color:#3c4043;border:1px solid #dadce0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;transition:box-shadow .2s;}
+.btn-google:hover{box-shadow:0 1px 6px rgba(60,64,67,.3);}
+/* ---- NOTIFICATIONS ---- */
 #notification-area{position:fixed;top:16px;right:16px;z-index:998;display:flex;flex-direction:column;gap:8px;max-width:340px;width:calc(100vw - 32px);}
 .notification-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:0 4px 24px rgba(0,0,0,.4);display:flex;align-items:flex-start;gap:10px;animation:notif-in .3s ease;}
 @keyframes notif-in{from{opacity:0;transform:translateY(-12px);}to{opacity:1;transform:translateY(0);}}
 .notification-card.notif-today{border-left:3px solid var(--red);}
 .notification-card.notif-tomorrow{border-left:3px solid var(--yellow);}
-#pin-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;}
-#pin-overlay.hidden{display:none;}
-.pin-dot{width:16px;height:16px;border-radius:50%;background:var(--muted);border:2px solid var(--border);transition:background .15s;}
-.pin-dot.filled{background:var(--green);border-color:var(--green);}
-.pin-dot.error{background:var(--red);border-color:var(--red);}
-.pin-key{width:72px;height:72px;border-radius:50%;background:var(--muted);border:1px solid var(--border);color:var(--text);font-size:22px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;justify-content:center;}
-.pin-key:hover{background:#2d4d66;}
-.pin-key:active{transform:scale(.93);}
-.pin-key.del{font-size:16px;background:transparent;border-color:transparent;color:var(--text-muted);}
-.pin-key.del:hover{color:var(--text);}
 </style>
 </head>
 <body>
 
 
-<!-- PIN LOCK OVERLAY -->
+<!-- AUTH OVERLAY -->
 <div id="notification-area"></div>
 
-<div id="pin-overlay">
-  <div style="text-align:center;max-width:320px;width:100%;padding:24px">
-    <div class="flex items-center justify-center gap-3 mb-3">
+<div id="auth-overlay">
+  <!-- Tela de Login -->
+  <div class="auth-box" id="auth-login-box">
+    <div class="flex items-center justify-center gap-3 mb-6">
       <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(34,197,94,.2)">
-        <i class="fa-solid fa-lock text-green-400"></i>
+        <i class="fa-solid fa-chart-line" style="color:var(--green)"></i>
       </div>
+      <span class="text-xl font-bold text-white">FinanceFlow</span>
     </div>
-    <h2 id="pin-title" class="text-xl font-bold text-white mb-1">FinanceFlow</h2>
-    <p id="pin-subtitle" class="text-sm mb-8" style="color:var(--text-muted)">Digite sua senha de 4 dígitos</p>
-    <!-- dots -->
-    <div class="flex justify-center gap-4 mb-10" id="pin-dots">
-      <div class="pin-dot" id="pd0"></div>
-      <div class="pin-dot" id="pd1"></div>
-      <div class="pin-dot" id="pd2"></div>
-      <div class="pin-dot" id="pd3"></div>
+    <h2 class="font-bold text-white mb-1 text-center">Bem-vindo de volta</h2>
+    <p class="text-xs text-center mb-6" style="color:var(--text-muted)">Entre na sua conta para continuar</p>
+    <div class="mb-3"><label class="label">Email</label><input type="email" class="input" id="auth-email" placeholder="seu@email.com" autocomplete="email"/></div>
+    <div class="mb-1"><label class="label">Senha</label><input type="password" class="input" id="auth-password" placeholder="••••••••" autocomplete="current-password"/></div>
+    <div class="flex justify-end mb-4"><button class="text-xs" style="color:var(--green);background:none;border:none;cursor:pointer" onclick="authForgotPassword()">Esqueci minha senha</button></div>
+    <div id="auth-login-error" class="text-xs mb-3 hidden" style="color:var(--red)"></div>
+    <button class="btn btn-primary w-full mb-3" onclick="authSignIn()"><i class="fa-solid fa-right-to-bracket mr-2"></i>Entrar</button>
+    <div class="auth-divider"><span>ou</span></div>
+    <button class="btn-google mb-4" onclick="authGoogleSignIn()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      Entrar com Google
+    </button>
+    <p class="text-xs text-center" style="color:var(--text-muted)">Não tem conta? <button class="text-xs" style="color:var(--green);background:none;border:none;cursor:pointer" onclick="authShowRegister()">Criar conta</button></p>
+  </div>
+
+  <!-- Tela de Criar Conta -->
+  <div class="auth-box hidden" id="auth-register-box">
+    <div class="flex items-center gap-3 mb-6">
+      <button class="btn btn-ghost btn-icon" onclick="authShowLogin()"><i class="fa-solid fa-arrow-left text-sm"></i></button>
+      <span class="font-bold text-white text-lg">Criar conta</span>
     </div>
-    <!-- keypad -->
-    <div style="display:grid;grid-template-columns:repeat(3,72px);gap:16px;justify-content:center">
-      <button class="pin-key" onclick="pinKey('1')">1</button>
-      <button class="pin-key" onclick="pinKey('2')">2</button>
-      <button class="pin-key" onclick="pinKey('3')">3</button>
-      <button class="pin-key" onclick="pinKey('4')">4</button>
-      <button class="pin-key" onclick="pinKey('5')">5</button>
-      <button class="pin-key" onclick="pinKey('6')">6</button>
-      <button class="pin-key" onclick="pinKey('7')">7</button>
-      <button class="pin-key" onclick="pinKey('8')">8</button>
-      <button class="pin-key" onclick="pinKey('9')">9</button>
-      <div></div>
-      <button class="pin-key" onclick="pinKey('0')">0</button>
-      <button class="pin-key del" onclick="pinDel()"><i class="fa-solid fa-delete-left"></i></button>
-    </div>
-    <p id="pin-error" class="text-sm mt-6 hidden" style="color:var(--red)"></p>
+    <div class="mb-3"><label class="label">Email</label><input type="email" class="input" id="auth-reg-email" placeholder="seu@email.com" autocomplete="email"/></div>
+    <div class="mb-3"><label class="label">Senha</label><input type="password" class="input" id="auth-reg-password" placeholder="Mínimo 6 caracteres" autocomplete="new-password"/></div>
+    <div class="mb-4"><label class="label">Confirmar senha</label><input type="password" class="input" id="auth-reg-confirm" placeholder="Repita a senha" autocomplete="new-password"/></div>
+    <div id="auth-reg-error" class="text-xs mb-3 hidden" style="color:var(--red)"></div>
+    <button class="btn btn-primary w-full mb-3" onclick="authRegister()"><i class="fa-solid fa-user-plus mr-2"></i>Criar conta</button>
+    <div class="auth-divider"><span>ou</span></div>
+    <button class="btn-google" onclick="authGoogleSignIn()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      Criar conta com Google
+    </button>
   </div>
 </div>
 
@@ -260,12 +267,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
     <a class="nav-item" onclick="navigate('settings')" data-page="settings"><span class="icon"><i class="fa-solid fa-gear"></i></span> Configurações</a>
   </div>
   <div class="p-3 border-t" style="border-color:var(--border)">
-    <button class="btn btn-primary w-full mb-2 text-xs" onclick="saveToFirebase()" id="btn-save-firebase"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar na nuvem</button>
-    <button class="btn btn-ghost w-full mb-2 text-xs" onclick="exportData()"><i class="fa-solid fa-download"></i> Exportar Backup</button>
-    <label class="btn btn-ghost w-full text-xs cursor-pointer">
-      <i class="fa-solid fa-upload"></i> Importar Backup
-      <input type="file" accept=".json" style="display:none" onchange="importData(this)"/>
-    </label>
+    <div id="auth-user-info" class="text-xs mb-2 truncate" style="color:var(--text-muted)"></div>
+    <button class="btn btn-ghost w-full text-xs" onclick="authSignOut()"><i class="fa-solid fa-right-from-bracket mr-1" style="color:var(--red)"></i> Sair</button>
   </div>
 </nav>
 
@@ -3498,14 +3501,24 @@ function init(){
 
 
 /* ============================================================
-   PIN LOCK SYSTEM
+   AUTH UI HELPERS
 ============================================================ */
-let pinBuffer = '';
-let pinMode = 'unlock'; // 'unlock' | 'setup' | 'setup2'
-let pinTemp = '';
-
-function getStoredPin() { return localStorage.getItem('financeflow_pin') || ''; }
-function setStoredPin(p) { localStorage.setItem('financeflow_pin', p); }
+function authShowLogin() {
+  document.getElementById('auth-login-box').classList.remove('hidden');
+  document.getElementById('auth-register-box').classList.add('hidden');
+  document.getElementById('auth-login-error').classList.add('hidden');
+}
+function authShowRegister() {
+  document.getElementById('auth-login-box').classList.add('hidden');
+  document.getElementById('auth-register-box').classList.remove('hidden');
+  document.getElementById('auth-reg-error').classList.add('hidden');
+}
+// Stubs — implementados no módulo Firebase abaixo
+function authSignIn(){}
+function authRegister(){}
+function authGoogleSignIn(){}
+function authForgotPassword(){}
+function authSignOut(){}
 
 /* ============================================================
    DUE NOTIFICATIONS — Alertas de vencimento
@@ -3620,190 +3633,175 @@ function dismissNotification(id) {
   setTimeout(()=>{ el.remove(); }, 200);
 }
 
-function initPin() {
-  const stored = getStoredPin();
-  if (!stored) {
-    // First run: ask to create PIN
-    pinMode = 'setup';
-    document.getElementById('pin-title').textContent = 'Criar Senha';
-    document.getElementById('pin-subtitle').textContent = 'Escolha uma senha de 4 dígitos';
-    document.getElementById('pin-overlay').classList.remove('hidden');
-  } else {
-    pinMode = 'unlock';
-    document.getElementById('pin-title').textContent = 'FinanceFlow';
-    document.getElementById('pin-subtitle').textContent = 'Digite sua senha de 4 dígitos';
-    document.getElementById('pin-overlay').classList.remove('hidden');
-  }
-}
-
-function pinKey(digit) {
-  if (pinBuffer.length >= 4) return;
-  pinBuffer += digit;
-  updatePinDots();
-  if (pinBuffer.length === 4) setTimeout(processPinInput, 120);
-}
-
-function pinDel() {
-  pinBuffer = pinBuffer.slice(0, -1);
-  updatePinDots();
-  clearPinError();
-}
-
-function updatePinDots(state) {
-  for (let i = 0; i < 4; i++) {
-    const d = document.getElementById('pd' + i);
-    d.className = 'pin-dot';
-    if (state === 'error') d.classList.add('error');
-    else if (i < pinBuffer.length) d.classList.add('filled');
-  }
-}
-
-function clearPinError() {
-  document.getElementById('pin-error').classList.add('hidden');
-  updatePinDots();
-}
-
-function processPinInput() {
-  const stored = getStoredPin();
-  if (pinMode === 'unlock') {
-    if (pinBuffer === stored) {
-      document.getElementById('pin-overlay').classList.add('hidden');
-      pinBuffer = '';
-      showDueNotifications();
-    } else {
-      showPinError('Senha incorreta. Tente novamente.');
-    }
-  } else if (pinMode === 'setup') {
-    pinTemp = pinBuffer;
-    pinBuffer = '';
-    pinMode = 'setup2';
-    document.getElementById('pin-subtitle').textContent = 'Confirme sua nova senha';
-    updatePinDots();
-  } else if (pinMode === 'setup2') {
-    if (pinBuffer === pinTemp) {
-      setStoredPin(pinBuffer);
-      pinBuffer = ''; pinTemp = '';
-      document.getElementById('pin-overlay').classList.add('hidden');
-      toast('Senha criada com sucesso!');
-    } else {
-      pinMode = 'setup';
-      showPinError('As senhas não coincidem. Tente novamente.');
-      document.getElementById('pin-subtitle').textContent = 'Escolha uma senha de 4 dígitos';
-    }
-  }
-}
-
-function showPinError(msg) {
-  updatePinDots('error');
-  const err = document.getElementById('pin-error');
-  err.textContent = msg;
-  err.classList.remove('hidden');
-  setTimeout(() => {
-    pinBuffer = '';
-    updatePinDots();
-    clearPinError();
-  }, 1200);
-}
-
-// Settings: change PIN
-function changePin() {
-  const current = document.getElementById('pin-current').value.trim();
-  const newPin  = document.getElementById('pin-new').value.trim();
-  const confirm = document.getElementById('pin-confirm').value.trim();
-  const stored  = getStoredPin();
-  if (!/^\d{4}$/.test(newPin)) { toast('A nova senha deve ter exatamente 4 dígitos numéricos.', 'error'); return; }
-  if (newPin !== confirm) { toast('A confirmação não coincide com a nova senha.', 'error'); return; }
-  if (stored && current !== stored) { toast('Senha atual incorreta.', 'error'); return; }
-  setStoredPin(newPin);
-  document.getElementById('pin-current').value = '';
-  document.getElementById('pin-new').value = '';
-  document.getElementById('pin-confirm').value = '';
-  toast('Senha alterada com sucesso!');
-}
-
-// Keyboard support for PIN overlay
-document.addEventListener('keydown', e => {
-  if (document.getElementById('pin-overlay').classList.contains('hidden')) return;
-  if (e.key >= '0' && e.key <= '9') pinKey(e.key);
-  if (e.key === 'Backspace') pinDel();
-});
-
 init();
-initPin();
 </script>
 
-<!-- Firebase: conexão com o banco de dados e função de salvar (adicionado, nada acima foi alterado) -->
+<!-- Firebase Auth + Firestore -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+  import { initializeApp }                    from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
   import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+  import {
+    getAuth, onAuthStateChanged,
+    signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    GoogleAuthProvider, signInWithPopup,
+    signOut, sendPasswordResetEmail
+  } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyD2eLTwAAQhHRCPdl5C4wI5YiV82l7abmE",
-    authDomain: "finflow-data.firebaseapp.com",
-    projectId: "finflow-data",
-    storageBucket: "finflow-data.firebasestorage.app",
-    messagingSenderId: "810059872758",
-    appId: "1:810059872758:web:04cb4dd1381a46e44a6fd7"
+    apiKey: "AIzaSyDNco_vqTYGkxBjmetPNCkJ9x6PUYblVSI",
+    authDomain: "finance-flow-3f1b8.firebaseapp.com",
+    projectId: "finance-flow-3f1b8",
+    storageBucket: "finance-flow-3f1b8.firebasestorage.app",
+    messagingSenderId: "810894441840",
+    appId: "1:810894441840:web:f46dcd79547b956cfee3b5",
+    measurementId: "G-C0LZ0X0X2V"
   };
 
-  const firebaseApp = initializeApp(firebaseConfig);
-  const db = getFirestore(firebaseApp);
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider();
 
-  // Carrega os dados salvos na nuvem (financeflow/state) e atualiza o app na tela.
-  // Chamada automaticamente assim que o app abre.
-  async function loadFromFirebase() {
+  // ── helpers de erro Firebase ──────────────────────────────
+  function friendlyError(code) {
+    const map = {
+      'auth/user-not-found':'Email não encontrado.',
+      'auth/wrong-password':'Senha incorreta.',
+      'auth/invalid-credential':'Email ou senha incorretos.',
+      'auth/email-already-in-use':'Este email já está cadastrado.',
+      'auth/weak-password':'A senha deve ter pelo menos 6 caracteres.',
+      'auth/invalid-email':'Email inválido.',
+      'auth/popup-closed-by-user':'Login cancelado.',
+      'auth/too-many-requests':'Muitas tentativas. Tente novamente mais tarde.',
+    };
+    return map[code] || 'Ocorreu um erro. Tente novamente.';
+  }
+  function showLoginError(msg) {
+    const el=document.getElementById('auth-login-error');
+    if(el){el.textContent=msg;el.classList.remove('hidden');}
+  }
+  function showRegisterError(msg) {
+    const el=document.getElementById('auth-reg-error');
+    if(el){el.textContent=msg;el.classList.remove('hidden');}
+  }
+
+  // ── Carregar dados do usuário do Firestore ────────────────
+  async function loadUserData(uid) {
     try {
-      const snap = await getDoc(doc(db, "financeflow", "state"));
+      const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
         const cloudState = snap.data();
-        Object.assign(state, cloudState); // mescla os dados da nuvem no objeto state já existente
+        Object.assign(state, cloudState);
         if (!state.categoryLimits) state.categoryLimits = {};
         if (!state.accountBalances) state.accountBalances = {};
         if (!state.invoicePaid) state.invoicePaid = {};
         if (!state.recurringPaid) state.recurringPaid = {};
-        saveState(); // mantém o localStorage em sincronia com o que veio da nuvem
-        // Restaurar categorias customizadas da nuvem
+        if (!state.debts) state.debts = [];
+        if (!state.debtPayments) state.debtPayments = {};
+        saveState();
         if(state.customCategories){
-          for(const c of state.customCategories){
+          for(const c of state.customCategories)
             if(!CATEGORIES.find(x=>x.id===c.id))CATEGORIES.push({...c,_custom:true});
-          }
           CATEGORIES.sort((a,b)=>a.label.localeCompare(b.label));
         }
-        // Restaurar contas customizadas da nuvem
         if(state.customAccounts){
-          for(const a of state.customAccounts){
+          for(const a of state.customAccounts)
             if(!ACCOUNT_TYPES.find(x=>x.id===a.id))ACCOUNT_TYPES.push({...a,_custom:true});
-          }
         }
         applyTheme(state.settings?.theme||'dark');
         populateAllCategorySelects();
         updateMonthLabel();
         refreshPage(currentPage);
-        toast('Dados carregados da nuvem!');
       }
-    } catch (e) {
-      console.warn('Firebase load failed', e);
-    }
+    } catch(e) { console.warn('loadUserData failed', e); }
   }
 
-  // Roda automaticamente ao abrir o app
-  loadFromFirebase();
-
-  // Salva o objeto `state` (todas as transações, recorrências, saldos, configurações etc.)
-  // no documento financeflow/state do Firestore.
-  window.saveToFirebase = async function ({ silent = false } = {}) {
-    const btn = document.getElementById('btn-save-firebase');
-    const originalHtml = btn ? btn.innerHTML : null;
-    if (!silent && btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Salvando...'; }
+  // ── Salvar dados ──────────────────────────────────────────
+  window.saveToFirebase = async function({ silent=false }={}) {
+    const user = auth.currentUser;
+    if(!user) return;
+    const btn=document.getElementById('btn-save-firebase');
+    const orig=btn?btn.innerHTML:null;
+    if(!silent&&btn){btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Salvando...';}
     try {
-      await setDoc(doc(db, "financeflow", "state"), JSON.parse(JSON.stringify(state)));
-      if (!silent) toast('Dados salvos na nuvem com sucesso!');
-    } catch (e) {
-      console.error('Firebase save failed', e);
-      if (!silent) toast('Erro ao salvar na nuvem. Veja o console.', 'error');
+      await setDoc(doc(db,'users',user.uid), JSON.parse(JSON.stringify(state)));
+      if(!silent) toast('Dados salvos na nuvem!');
+    } catch(e) {
+      console.error('saveToFirebase failed',e);
+      if(!silent) toast('Erro ao salvar.','error');
     } finally {
-      if (!silent && btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+      if(!silent&&btn){btn.disabled=false;btn.innerHTML=orig;}
     }
+  };
+
+  // ── Listener de autenticação ──────────────────────────────
+  onAuthStateChanged(auth, user => {
+    const overlay = document.getElementById('auth-overlay');
+    if (user) {
+      // Logado: esconder overlay, carregar dados, mostrar email
+      overlay.classList.add('hidden');
+      const info=document.getElementById('auth-user-info');
+      if(info) info.textContent = user.email || user.displayName || '';
+      loadUserData(user.uid);
+      showDueNotifications();
+    } else {
+      // Não logado: mostrar overlay de login
+      overlay.classList.remove('hidden');
+      authShowLogin();
+    }
+  });
+
+  // ── Funções de auth expostas globalmente ──────────────────
+  window.authSignIn = async function() {
+    const email = document.getElementById('auth-email').value.trim();
+    const pass  = document.getElementById('auth-password').value;
+    document.getElementById('auth-login-error').classList.add('hidden');
+    if(!email||!pass){showLoginError('Preencha email e senha.');return;}
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch(e) { showLoginError(friendlyError(e.code)); }
+  };
+
+  window.authRegister = async function() {
+    const email   = document.getElementById('auth-reg-email').value.trim();
+    const pass    = document.getElementById('auth-reg-password').value;
+    const confirm = document.getElementById('auth-reg-confirm').value;
+    document.getElementById('auth-reg-error').classList.add('hidden');
+    if(!email||!pass){showRegisterError('Preencha todos os campos.');return;}
+    if(pass!==confirm){showRegisterError('As senhas não coincidem.');return;}
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    } catch(e) { showRegisterError(friendlyError(e.code)); }
+  };
+
+  window.authGoogleSignIn = async function() {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch(e) {
+      const msg = friendlyError(e.code);
+      // Mostrar erro na tela visível
+      const regBox = document.getElementById('auth-register-box');
+      if(!regBox.classList.contains('hidden')) showRegisterError(msg);
+      else showLoginError(msg);
+    }
+  };
+
+  window.authForgotPassword = async function() {
+    const email = document.getElementById('auth-email').value.trim();
+    if(!email){showLoginError('Digite seu email para redefinir a senha.');return;}
+    try {
+      await sendPasswordResetEmail(auth, email);
+      document.getElementById('auth-login-error').classList.add('hidden');
+      toast('Email de redefinição enviado! Verifique sua caixa de entrada.');
+    } catch(e) { showLoginError(friendlyError(e.code)); }
+  };
+
+  window.authSignOut = async function() {
+    if(!confirm('Deseja realmente sair?')) return;
+    await signOut(auth);
+    // Limpar localStorage para não expor dados
+    localStorage.removeItem('financeflow_v3');
+    localStorage.removeItem('financeflow_v2');
   };
 </script>
 </body>
