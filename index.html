@@ -625,15 +625,39 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
   <!-- IMPORT CSV -->
   <div id="page-import" class="page">
     <div class="card mb-4">
-      <h3 class="font-bold text-white mb-1">Importar Fatura Nubank (CSV)</h3>
-      <p class="text-xs mb-4" style="color:var(--text-muted)">Selecione o arquivo .csv exportado pelo Nubank para conciliar automaticamente.</p>
-      <div class="border-2 border-dashed rounded-xl p-8 text-center mb-4" style="border-color:var(--border)" id="csv-drop-zone">
-        <i class="fa-solid fa-file-csv text-4xl mb-3" style="color:var(--text-muted)"></i>
-        <p class="text-sm font-semibold text-white mb-1">Arraste o CSV aqui ou clique para selecionar</p>
-        <p class="text-xs" style="color:var(--text-muted)">Formato Nubank: date, title, amount</p>
-        <input type="file" id="csv-input" accept=".csv" class="hidden" onchange="handleCSV(this)"/>
-        <button class="btn btn-ghost mt-3" onclick="document.getElementById('csv-input').click()"><i class="fa-solid fa-folder-open"></i> Selecionar arquivo</button>
+      <h3 class="font-bold text-white mb-1">Importar Fatura (CSV)</h3>
+      <p class="text-xs mb-4" style="color:var(--text-muted)" id="import-subtitle">Selecione o arquivo .csv da fatura do cartão para conciliar automaticamente.</p>
+      <div class="tab-bar mb-4" id="import-type-tabs">
+        <div class="tab active" onclick="setImportType('invoice')">Fatura (Cartão)</div>
+        <div class="tab" onclick="setImportType('statement')">Extrato (Conta)</div>
       </div>
+
+      <!-- Fatura (cartão) -->
+      <div id="import-dropzone-invoice">
+        <div class="border-2 border-dashed rounded-xl p-8 text-center mb-4" style="border-color:var(--border)">
+          <i class="fa-solid fa-file-csv text-4xl mb-3" style="color:var(--text-muted)"></i>
+          <p class="text-sm font-semibold text-white mb-1">Arraste o CSV aqui ou clique para selecionar</p>
+          <p class="text-xs" style="color:var(--text-muted)">Formato: date, title, amount</p>
+          <input type="file" id="csv-input" accept=".csv" class="hidden" onchange="handleCSV(this,'invoice')"/>
+          <button class="btn btn-ghost mt-3" onclick="document.getElementById('csv-input').click()"><i class="fa-solid fa-folder-open"></i> Selecionar arquivo</button>
+        </div>
+      </div>
+
+      <!-- Extrato (conta) -->
+      <div id="import-dropzone-statement" class="hidden">
+        <div class="mb-4">
+          <label class="label">Lançar em qual conta?</label>
+          <select class="select" id="import-statement-account"></select>
+        </div>
+        <div class="border-2 border-dashed rounded-xl p-8 text-center mb-4" style="border-color:var(--border)">
+          <i class="fa-solid fa-file-csv text-4xl mb-3" style="color:var(--text-muted)"></i>
+          <p class="text-sm font-semibold text-white mb-1">Arraste o CSV aqui ou clique para selecionar</p>
+          <p class="text-xs" style="color:var(--text-muted)">Formato: Data, Valor, Identificador, Descrição</p>
+          <input type="file" id="csv-input-statement" accept=".csv" class="hidden" onchange="handleCSV(this,'statement')"/>
+          <button class="btn btn-ghost mt-3" onclick="document.getElementById('csv-input-statement').click()"><i class="fa-solid fa-folder-open"></i> Selecionar arquivo</button>
+        </div>
+      </div>
+
       <div id="import-preview" class="hidden">
         <div class="flex items-center justify-between mb-3">
           <h4 class="font-semibold text-white text-sm">Revisão da Importação</h4>
@@ -642,12 +666,35 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
             <button class="btn btn-primary btn-sm" onclick="confirmImport()"><i class="fa-solid fa-check"></i> Confirmar Selecionados</button>
           </div>
         </div>
+        <p class="text-xs mb-3" style="color:var(--text-muted)"><i class="fa-solid fa-hand-pointer mr-1"></i>Clique em uma linha para editar nome, categoria e outras opções.</p>
         <div class="overflow-x-auto">
           <table class="import-table">
-            <thead><tr><th><input type="checkbox" id="import-all-check" onchange="toggleAllImport(this)"/></th><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Recorrente</th><th>Status</th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="import-all-check" onchange="toggleAllImport(this)"/></th><th>Data</th><th>Descrição</th><th>Valor</th><th>Status</th></tr></thead>
             <tbody id="import-tbody"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Editar item de importação -->
+  <div id="modal-edit-import-row" class="modal-overlay">
+    <div class="modal-box">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="font-bold text-white text-lg"><i class="fa-solid fa-pen mr-2" style="color:var(--blue)"></i>Editar Item</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('edit-import-row')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <input type="hidden" id="import-edit-idx"/>
+      <div class="mb-3"><label class="label">Nome</label><input class="input" id="import-edit-desc" placeholder="Descrição da transação"/></div>
+      <div class="mb-3" id="import-edit-category-wrap"><label class="label">Categoria</label><select class="select" id="import-edit-category"></select></div>
+      <div class="mb-3 hidden" id="import-edit-account-wrap"><label class="label">Conta</label><select class="select" id="import-edit-account"></select></div>
+      <div class="flex items-center gap-3 mb-4">
+        <label class="toggle"><input type="checkbox" id="import-edit-recurring"/><span class="toggle-slider"></span></label>
+        <span class="text-sm font-medium text-white">Recorrente (repete todo mês)</span>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button class="btn btn-ghost" onclick="closeModal('edit-import-row')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveEditImportRow()"><i class="fa-solid fa-check"></i> Salvar</button>
       </div>
     </div>
   </div>
@@ -1220,6 +1267,11 @@ function refreshPage(page) {
     case'debts':renderDebtsPage();break;
     case'savings':renderSavings();break;
     case'settings':renderSettings();break;
+    case'import':{
+      const sel=document.getElementById('import-statement-account');
+      if(sel&&!sel.options.length)sel.innerHTML=ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
+      break;
+    }
   }
 }
 
@@ -3326,6 +3378,21 @@ function populateAccountSelects() {
    CSV IMPORT (NUBANK)
 ============================================================ */
 let importRows=[];
+let currentImportType='invoice'; // 'invoice' | 'statement'
+
+function setImportType(type){
+  currentImportType=type;
+  document.querySelectorAll('#import-type-tabs .tab').forEach((t,i)=>t.classList.toggle('active',i===(type==='invoice'?0:1)));
+  document.getElementById('import-dropzone-invoice').classList.toggle('hidden',type!=='invoice');
+  document.getElementById('import-dropzone-statement').classList.toggle('hidden',type!=='statement');
+  document.getElementById('import-subtitle').textContent=type==='invoice'
+    ?'Selecione o arquivo .csv da fatura do cartão para conciliar automaticamente.'
+    :'Selecione o arquivo .csv do extrato da conta (receitas e despesas) para conciliar automaticamente.';
+  if(type==='statement'){
+    const sel=document.getElementById('import-statement-account');
+    if(sel)sel.innerHTML=ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
+  }
+}
 
 // Faz o split de uma linha CSV respeitando campos entre aspas, para que um delimitador
 // (vírgula ou ponto-e-vírgula) presente DENTRO de um valor entre aspas — como a vírgula
@@ -3356,30 +3423,59 @@ function splitCSVRow(line, delimiter){
   return result;
 }
 
-function handleCSV(input){
+// Split específico para o extrato (Data,Valor,Identificador,Descrição): a descrição pode
+// conter vírgulas sem aspas, então só os 3 primeiros separadores são considerados colunas
+// e o restante da linha inteira vira a descrição.
+function splitStatementRow(line){
+  const parts=[];
+  let idx=0;
+  for(let i=0;i<3;i++){
+    const commaIdx=line.indexOf(',',idx);
+    if(commaIdx===-1)return null;
+    parts.push(line.slice(idx,commaIdx).trim());
+    idx=commaIdx+1;
+  }
+  parts.push(line.slice(idx).trim());
+  return parts;
+}
+
+function convertBRDateToISO(dateStr){
+  const parts=dateStr.split('/');
+  if(parts.length!==3)return dateStr;
+  const[d,m,y]=parts;
+  return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+
+// Valor do extrato: pode vir com ponto decimal (ex: -28.23) ou no formato BR (ex: -1.234,56)
+function parseSignedAmount(raw){
+  let s=String(raw).trim();
+  const neg=s.startsWith('-');
+  if(neg)s=s.slice(1);
+  if(s.includes(',')&&s.includes('.')) s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(',')&&!s.includes('.')) s=s.replace(',','.');
+  const val=parseFloat(s);
+  return neg?-val:val;
+}
+
+function handleCSV(input,source){
   const file=input.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=e=>parseCSV(e.target.result);
+  reader.onload=e=>{ if(source==='statement') parseStatementCSV(e.target.result); else parseInvoiceCSV(e.target.result); };
   reader.readAsText(file,'UTF-8');input.value='';
 }
 
-function parseCSV(text) {
+function parseInvoiceCSV(text) {
   const lines=text.trim().split('\n').filter(l=>l.trim());
   if(lines.length<2){toast('CSV inválido ou vazio','error');return;}
   const header=lines[0].toLowerCase();
   const hasHeader=header.includes('date')||header.includes('title')||header.includes('amount');
   const dataLines=hasHeader?lines.slice(1):lines;
-  // CSVs em formato BR (vírgula decimal) podem usar ';' como delimitador, ou usar ',' com o valor
-  // entre aspas (ex: "18,53") para não conflitar com a vírgula decimal. Um split simples não entende
-  // aspas e quebra o valor entre aspas em duas colunas, descartando a parte decimal. O splitCSVRow
-  // abaixo respeita aspas, então a vírgula decimal dentro de "18,53" não é tratada como separador.
   const delimiter=lines[0].includes(';')?';':',';
   importRows=[];
   for(const line of dataLines){
     const cols=splitCSVRow(line,delimiter);
     if(cols.length<3)continue;
     const[dateRaw,title,amountRaw]=cols;
-    // preserva o valor decimal brasileiro exato (x.xxx,yy → remove pontos de milhar, troca vírgula por ponto)
     const amount=parseBRL(amountRaw);
     if(isNaN(amount))continue;
     let description=title.trim();
@@ -3389,7 +3485,31 @@ function parseCSV(text) {
     if(matchParcela){installBase=matchParcela[1].trim();installPart=parseInt(matchParcela[2]);installTotal=parseInt(matchParcela[3]);}
     else if(matchSlash){installBase=matchSlash[1].trim();installPart=parseInt(matchSlash[2]);installTotal=parseInt(matchSlash[3]);}
     const isDuplicate=state.transactions.some(tx=>tx.description===description&&tx.date===dateRaw&&Math.abs(tx.amount-amount)<0.01);
-    importRows.push({date:dateRaw,title,description,amount,isDuplicate,isInstallment:!!installPart,installPart,installTotal,installBase,category:'outros',isRecurring:false,selected:!isDuplicate});
+    importRows.push({source:'invoice',txType:'credit',date:dateRaw,title,description,amount,isDuplicate,isInstallment:!!installPart,installPart,installTotal,installBase,category:'outros',isRecurring:false,selected:!isDuplicate});
+  }
+  renderImportPreview();
+}
+
+function parseStatementCSV(text) {
+  const lines=text.trim().split('\n').filter(l=>l.trim());
+  if(lines.length<2){toast('CSV inválido ou vazio','error');return;}
+  const header=lines[0].toLowerCase();
+  const hasHeader=header.includes('data')||header.includes('valor')||header.includes('descri');
+  const dataLines=hasHeader?lines.slice(1):lines;
+  const accountId=document.getElementById('import-statement-account')?.value||'contacorrente';
+  importRows=[];
+  for(const line of dataLines){
+    const cols=splitStatementRow(line);
+    if(!cols)continue;
+    const[dateRaw,valorRaw,,descRaw]=cols;
+    const signedAmount=parseSignedAmount(valorRaw);
+    if(isNaN(signedAmount))continue;
+    const isoDate=convertBRDateToISO(dateRaw);
+    const description=(descRaw||'').trim();
+    const amount=Math.abs(signedAmount);
+    const txType=signedAmount<0?'debit':'income';
+    const isDuplicate=state.transactions.some(tx=>tx.description===description&&tx.date===isoDate&&Math.abs(tx.amount-amount)<0.01);
+    importRows.push({source:'statement',txType,date:isoDate,title:description,description,amount,isDuplicate,isInstallment:false,category:txType==='income'?'receita':'outros',isRecurring:false,accountId,selected:!isDuplicate});
   }
   renderImportPreview();
 }
@@ -3398,19 +3518,55 @@ function renderImportPreview(){
   document.getElementById('import-preview').classList.remove('hidden');
   const tbody=document.getElementById('import-tbody');
   tbody.innerHTML=importRows.map((row,idx)=>{
-    const catOpts=CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===row.category?'selected':''}>${c.label}</option>`).join('');
     const installLabel=row.isInstallment?`<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple)">${row.installPart}/${row.installTotal}</span>`:'';
+    const recLabel=row.isRecurring?`<i class="fa-solid fa-rotate text-xs ml-1" style="color:var(--blue)" title="Recorrente"></i>`:'';
     const dupLabel=row.isDuplicate?`<span class="badge" style="background:rgba(244,63,94,.15);color:var(--red)">Duplicado</span>`:`<span class="badge" style="background:rgba(34,197,94,.15);color:var(--green)">Novo</span>`;
-    return `<tr class="${row.isDuplicate?'duplicate':''}">
-      <td><input type="checkbox" ${row.selected?'checked':''} ${row.isDuplicate?'disabled':''} onchange="importRows[${idx}].selected=this.checked"/></td>
+    const amountColor=row.txType==='income'?'var(--green)':'var(--red)';
+    const amountSign=row.txType==='income'?'+':'-';
+    return `<tr class="${row.isDuplicate?'duplicate':''}" style="cursor:pointer" onclick="if(event.target.type!=='checkbox')openEditImportRow(${idx})">
+      <td onclick="event.stopPropagation()"><input type="checkbox" ${row.selected?'checked':''} ${row.isDuplicate?'disabled':''} onchange="importRows[${idx}].selected=this.checked"/></td>
       <td class="text-xs" style="color:var(--text-muted)">${formatDateBR(row.date)}</td>
-      <td class="text-sm text-white">${escHtml(row.description)} ${installLabel}</td>
-      <td class="text-sm font-bold" style="color:var(--red)">R$ ${row.amount.toFixed(2).replace('.',',')}</td>
-      <td><select class="select text-xs py-1 px-2" style="width:130px" onchange="importRows[${idx}].category=this.value">${catOpts}</select></td>
-      <td><label class="toggle"><input type="checkbox" ${row.isRecurring?'checked':''} onchange="importRows[${idx}].isRecurring=this.checked"/><span class="toggle-slider"></span></label></td>
+      <td class="text-sm text-white">${escHtml(row.description)} ${installLabel}${recLabel}</td>
+      <td class="text-sm font-bold" style="color:${amountColor}">${amountSign} R$ ${row.amount.toFixed(2).replace('.',',')}</td>
       <td>${dupLabel}</td>
     </tr>`;
   }).join('');
+}
+
+function openEditImportRow(idx){
+  const row=importRows[idx];if(!row)return;
+  document.getElementById('import-edit-idx').value=idx;
+  document.getElementById('import-edit-desc').value=row.description;
+  const catWrap=document.getElementById('import-edit-category-wrap');
+  const catSel=document.getElementById('import-edit-category');
+  if(row.txType==='income'){
+    catWrap.classList.add('hidden');
+  } else {
+    catWrap.classList.remove('hidden');
+    catSel.innerHTML=CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===row.category?'selected':''}>${c.label}</option>`).join('');
+  }
+  const accWrap=document.getElementById('import-edit-account-wrap');
+  const accSel=document.getElementById('import-edit-account');
+  if(row.source==='statement'){
+    accWrap.classList.remove('hidden');
+    accSel.innerHTML=ACCOUNT_TYPES.map(a=>`<option value="${a.id}" ${a.id===row.accountId?'selected':''}>${a.label}</option>`).join('');
+  } else {
+    accWrap.classList.add('hidden');
+  }
+  document.getElementById('import-edit-recurring').checked=!!row.isRecurring;
+  openModal('edit-import-row');
+}
+
+function saveEditImportRow(){
+  const idx=parseInt(document.getElementById('import-edit-idx').value);
+  const row=importRows[idx];if(!row)return;
+  const newDesc=document.getElementById('import-edit-desc').value.trim();
+  if(newDesc)row.description=newDesc;
+  if(row.txType!=='income')row.category=document.getElementById('import-edit-category').value;
+  if(row.source==='statement')row.accountId=document.getElementById('import-edit-account').value;
+  row.isRecurring=document.getElementById('import-edit-recurring').checked;
+  closeModal('edit-import-row');
+  renderImportPreview();
 }
 
 function toggleAllImport(cb){
@@ -3423,27 +3579,39 @@ function confirmImport(){
   let added=0;
   const selected=importRows.filter(r=>r.selected&&!r.isDuplicate);
   for(const row of selected){
-    if(row.isInstallment){
-      const groupId=uid();const[y,m,d]=row.date.split('-').map(Number);const partOffset=(row.installPart||1)-1;
-      for(let i=0;i<row.installTotal;i++){
-        const relI=i-partOffset;const txDate=new Date(y,m-1+relI,d);
-        const txDateStr=`${txDate.getFullYear()}-${String(txDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const partNum=i+1;const desc=`${row.installBase} ${partNum}/${row.installTotal}`;
-        const dupCheck=state.transactions.some(tx=>tx.description===desc&&tx.date===txDateStr&&Math.abs(tx.amount-row.amount)<0.01);
-        if(dupCheck)continue;
-        state.transactions.push({id:uid(),type:'credit',description:desc,amount:row.amount,date:txDateStr,category:row.category,notes:'Importado via CSV',_installmentOf:groupId,_part:partNum,_total:row.installTotal});
+    if(row.source==='invoice'){
+      if(row.isInstallment){
+        const groupId=uid();const[y,m,d]=row.date.split('-').map(Number);const partOffset=(row.installPart||1)-1;
+        for(let i=0;i<row.installTotal;i++){
+          const relI=i-partOffset;const txDate=new Date(y,m-1+relI,d);
+          const txDateStr=`${txDate.getFullYear()}-${String(txDate.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const partNum=i+1;const desc=`${row.installBase} ${partNum}/${row.installTotal}`;
+          const dupCheck=state.transactions.some(tx=>tx.description===desc&&tx.date===txDateStr&&Math.abs(tx.amount-row.amount)<0.01);
+          if(dupCheck)continue;
+          state.transactions.push({id:uid(),type:'credit',description:desc,amount:row.amount,date:txDateStr,category:row.category,notes:'Importado via CSV',_installmentOf:groupId,_part:partNum,_total:row.installTotal});
+        }
+      } else if(row.isRecurring){
+        state.recurring.push({id:uid(),type:'card',description:row.description,amount:row.amount,day:parseInt(row.date.slice(8,10))||1,category:row.category,startMonth:row.date.slice(0,7)});
+      } else {
+        state.transactions.push({id:uid(),type:'credit',description:row.description,amount:row.amount,date:row.date,category:row.category,notes:'Importado via CSV'});
       }
-    } else if(row.isRecurring){
-      state.recurring.push({id:uid(),type:'card',description:row.description,amount:row.amount,day:parseInt(row.date.slice(8,10))||1,category:row.category,startMonth:row.date.slice(0,7)});
     } else {
-      state.transactions.push({id:uid(),type:'credit',description:row.description,amount:row.amount,date:row.date,category:row.category,notes:'Importado via CSV'});
+      // Extrato (conta): receitas e despesas afetam o saldo da conta imediatamente
+      const accountId=row.accountId||'contacorrente';
+      const category=row.txType==='income'?'receita':(row.category||'outros');
+      if(row.isRecurring){
+        state.recurring.push({id:uid(),type:row.txType==='income'?'income':'account',description:row.description,amount:row.amount,day:parseInt(row.date.slice(8,10))||1,category,accountId,startMonth:row.date.slice(0,7)});
+      } else {
+        state.transactions.push({id:uid(),type:row.txType,description:row.description,amount:row.amount,date:row.date,category,accountId,notes:'Importado via CSV'});
+        adjustAccountBalance(accountId, row.txType==='income'?row.amount:-row.amount);
+      }
     }
     added++;
   }
   saveState();cancelImport();toast(`${added} item(s) importado(s)!`);renderDashboard();
 }
 
-function cancelImport(){importRows=[];document.getElementById('import-preview').classList.add('hidden');document.getElementById('csv-input').value='';}
+function cancelImport(){importRows=[];document.getElementById('import-preview').classList.add('hidden');document.getElementById('csv-input').value='';document.getElementById('csv-input-statement').value='';}
 
 const dropZone=document.getElementById('csv-drop-zone');
 if(dropZone){
