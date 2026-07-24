@@ -362,13 +362,19 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
         <div id="expenses-breakdown-detail" class="hidden" style="position:absolute;top:100%;left:0;right:0;z-index:25;margin-top:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;box-shadow:0 8px 32px rgba(0,0,0,.6)"></div>
       </div>
       <!-- 4. Fatura do Cartão -->
-      <div class="summary-card red" style="background:linear-gradient(135deg,var(--card) 0%,rgba(255,255,255,.04) 100%)">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text-muted)">Fatura do Cartão</span>
-          <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(244,63,94,.15)"><i class="fa-solid fa-credit-card text-sm" style="color:var(--red)"></i></div>
+      <div style="position:relative">
+        <div class="summary-card red" style="background:linear-gradient(135deg,var(--card) 0%,rgba(255,255,255,.04) 100%);cursor:pointer" onclick="toggleCardBreakdown('invoice')">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text-muted)">Fatura do Cartão</span>
+            <div class="flex items-center gap-2">
+              <i id="invoice-expand-icon" class="fa-solid fa-chevron-down text-xs" style="color:var(--text-muted);transition:transform .3s"></i>
+              <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(244,63,94,.15)"><i class="fa-solid fa-credit-card text-sm" style="color:var(--red)"></i></div>
+            </div>
+          </div>
+          <div id="card-invoice" class="text-2xl font-bold text-white">R$ 0,00</div>
+          <div class="text-xs mt-1" style="color:var(--text-muted)">Soma de todas as faturas em aberto</div>
         </div>
-        <div id="card-invoice" class="text-2xl font-bold text-white">R$ 0,00</div>
-        <div class="text-xs mt-1" style="color:var(--text-muted)">Fatura atual do cartão</div>
+        <div id="invoice-breakdown-detail" class="hidden" style="position:absolute;top:100%;left:0;right:0;z-index:25;margin-top:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;box-shadow:0 8px 32px rgba(0,0,0,.6)"></div>
       </div>
       <!-- 5. Projeção do Mês -->
       <div style="position:relative">
@@ -468,6 +474,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 
   <!-- CARD -->
   <div id="page-card" class="page">
+    <div id="card-selector-tabs" class="flex items-center gap-2 mb-4 overflow-x-auto hidden" style="padding-bottom:4px"></div>
     <div class="card mb-4">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-white" id="card-invoice-title">Fatura do Cartão</h3>
@@ -912,6 +919,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
       <div><label class="label">Valor (R$)</label><input type="text" class="input" id="tx-amount" placeholder="Ex: 15,90" oninput="formatAmountInput(this)" inputmode="decimal"/></div>
       <div><label class="label">Data</label><input type="date" class="input" id="tx-date"/></div>
       <div class="col-span-2" id="tx-account-wrap"><label class="label">Pagar com</label><select class="select" id="tx-account"></select></div>
+      <div class="col-span-2 hidden" id="tx-creditcard-wrap"><label class="label">Cartão</label><select class="select" id="tx-creditcard"></select></div>
       <div class="col-span-2"><label class="label">Categoria</label><select class="select" id="tx-category"></select></div>
       <div class="col-span-2"><label class="label">Observações</label><input type="text" class="input" id="tx-notes" placeholder="Opcional"/></div>
     </div>
@@ -946,6 +954,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
       <div><label class="label">Valor (R$)</label><input type="text" class="input" id="edit-tx-amount" placeholder="Ex: 15,90" oninput="formatAmountInput(this)" inputmode="decimal"/></div>
       <div><label class="label">Data</label><input type="date" class="input" id="edit-tx-date"/></div>
       <div class="col-span-2" id="edit-tx-account-wrap"><label class="label">Pagar com</label><select class="select" id="edit-tx-account"></select></div>
+      <div class="col-span-2 hidden" id="edit-tx-creditcard-wrap"><label class="label">Cartão</label><select class="select" id="edit-tx-creditcard"></select></div>
       <div class="col-span-2" id="edit-tx-category-wrap"><label class="label">Categoria</label><select class="select" id="edit-tx-category"></select></div>
       <div class="col-span-2"><label class="label">Observações</label><input type="text" class="input" id="edit-tx-notes"/></div>
     </div>
@@ -975,6 +984,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
       <div><label class="label">Dia do mês</label><input type="number" class="input" id="rec-day" min="1" max="28" placeholder="Ex: 10"/></div>
       <div class="col-span-2" id="rec-category-wrap"><label class="label">Categoria</label><select class="select" id="rec-category"></select></div>
       <div class="col-span-2 hidden" id="rec-account-wrap"><label class="label">Receber em</label><select class="select" id="rec-account"></select></div>
+      <div class="col-span-2 hidden" id="rec-creditcard-wrap"><label class="label">Cartão</label><select class="select" id="rec-creditcard"></select></div>
     </div>
     <div class="flex gap-2 justify-end">
       <button class="btn btn-ghost" onclick="closeModal('add-recurring')">Cancelar</button>
@@ -991,6 +1001,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
       <button class="btn btn-ghost btn-icon" onclick="closeModal('edit-recurring')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <input type="hidden" id="edit-rec-id"/>
+    <input type="hidden" id="edit-rec-ym"/>
     <div class="mb-3"><label class="label">Novo Valor (R$)</label><input type="text" class="input" id="edit-rec-amount" placeholder="Ex: 520,00" oninput="formatAmountInput(this)" inputmode="decimal"/></div>
     <div class="mb-3"><label class="label">Nova Descrição</label><input type="text" class="input" id="edit-rec-description"/></div>
     <div class="mb-4"><label class="label">Aplicar a</label>
@@ -1059,6 +1070,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
     <p class="text-sm mb-3" id="pay-rec-confirm-text" style="color:var(--text-muted)">O valor será descontado da conta apenas após confirmar.</p>
     <div class="mb-4"><label class="label" id="pay-rec-label">Despesa</label><div id="pay-rec-desc" class="text-white font-semibold"></div><div id="pay-rec-amount" class="text-xl font-bold mt-1" style="color:var(--red)"></div></div>
     <div class="mb-4"><label class="label" id="pay-rec-account-label">Debitar da conta</label><select class="select" id="pay-rec-account"></select></div>
+    <div class="flex items-center gap-3 mb-4">
+      <label class="toggle"><input type="checkbox" id="pay-rec-other-date-check" onchange="toggleRecPayDate(this)"/><span class="toggle-slider"></span></label>
+      <span class="text-sm font-medium text-white">Pago em outro dia?</span>
+    </div>
+    <div id="pay-rec-date-wrap" class="mb-4 hidden"><label class="label">Data do pagamento</label><input type="date" class="input" id="pay-rec-date"/></div>
     <div class="flex gap-2 justify-end">
       <button class="btn btn-ghost" onclick="closeModal('pay-recurring')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmPayRecurring()"><i class="fa-solid fa-check"></i> <span id="pay-rec-confirm-btn-text">Confirmar Pagamento</span></button>
@@ -1303,7 +1319,7 @@ function getMonthTransactions(ym) {
   // One-time transactions
   for(const tx of state.transactions) {
     if(!tx.date)continue;
-    if(tx.date.slice(0,7)===ym) txs.push({...tx,_source:'transaction'});
+    if(tx.date.slice(0,7)===ym) txs.push({...tx,_source:'transaction',_sortKey:tx.id});
   }
 
   // Recurring
@@ -1311,22 +1327,46 @@ function getMonthTransactions(ym) {
     if(rec.startMonth&&rec.startMonth>ym)continue;
     if(rec.endMonth&&rec.endMonth<ym)continue;
     const oKey=`${rec.id}_${ym}`;
-    const isPaid=!!(state.recurringPaid?.[oKey]?.paid);
+    const paidRecord=state.recurringPaid?.[oKey];
+    const isPaid=!!(paidRecord?.paid);
     // Conta e receita: só incluir nas transações se já foram pagas/recebidas
     // Cartão: inclui sempre (para aparecer na fatura do mês)
     if((rec.type==='account'||rec.type==='income')&&!isPaid)continue;
     const over=state.recurringOverrides[oKey];
     const amount=over?.amount!==undefined?over.amount:rec.amount;
     const description=over?.description||rec.description;
-    const[y,m]=ym.split('-').map(Number);
     const day=Math.min(rec.day||1,28);
-    const dateStr=`${ym}-${String(day).padStart(2,'0')}`;
+    const defaultDateStr=`${ym}-${String(day).padStart(2,'0')}`;
+    // Se foi paga em outro dia (Fix 3), usa a data real do pagamento
+    const dateStr=(paidRecord&&paidRecord.effectiveDate)?paidRecord.effectiveDate:defaultDateStr;
     txs.push({
       id:rec.id+'_'+ym,_recurringId:rec.id,_source:'recurring',
       type:rec.type,description,amount,date:dateStr,category:rec.category,notes:'',isRecurring:true,
+      creditCardId:rec.creditCardId,
+      _sortKey:paidRecord?.paidAt?String(paidRecord.paidAt):rec.id,
     });
   }
   return txs;
+}
+
+// Ordena transações para exibição: mais recentes primeiro por data; dentro do mesmo dia,
+// a que foi adicionada/paga mais recentemente aparece em cima (Fix 1). Recorrências de
+// cartão cujo dia de cobrança ainda não chegou ficam sempre no final da lista (Fix 2).
+function sortTransactionsForDisplay(txs) {
+  const today=todayStr();
+  const pending=[];
+  const normal=[];
+  for(const t of txs){
+    if(t._source==='recurring'&&(t.type==='card'||t.type==='credit')&&t.date>today) pending.push(t);
+    else normal.push(t);
+  }
+  normal.sort((a,b)=>{
+    const dc=(b.date||'').localeCompare(a.date||'');
+    if(dc!==0)return dc;
+    return String(b._sortKey||b.id||'').localeCompare(String(a._sortKey||a.id||''));
+  });
+  pending.sort((a,b)=>(a.date||'').localeCompare(b.date||'')); // próxima cobrança primeiro
+  return [...normal,...pending];
 }
 
 function getMonthIncome(ym, catFilter='') {
@@ -1349,6 +1389,21 @@ function getMonthCardInvoice(ym, catFilter='') {
 
 // ---- Ciclo de fatura do cartão (baseado no dia de fechamento) ----
 // Dias >= closingDay já pertencem à fatura do mês seguinte (comportamento padrão dos cartões).
+// ---- Múltiplos cartões de crédito ----
+let currentCreditCardId = null;
+// Retorna o id do cartão selecionado na página de Cartão. Se não houver cartões cadastrados
+// (uso legado/único cartão), retorna null — nesse caso nada é filtrado (comportamento antigo).
+function getSelectedCardId() {
+  if(!state.creditCards||state.creditCards.length===0) return null;
+  if(currentCreditCardId&&state.creditCards.some(c=>c.id===currentCreditCardId)) return currentCreditCardId;
+  return state.creditCards[0].id;
+}
+// Chave usada em state.invoicePaid: sem cardId (uso legado) usa a chave antiga "ym";
+// com um cartão selecionado (multi-cartão), usa "ym__cardId" para não misturar faturas.
+function invoiceKey(ym, cardId) { return cardId ? `${ym}__${cardId}` : ym; }
+// Verifica se uma transação/recorrência pertence ao cartão filtrado (null = não filtra, inclui tudo)
+function txMatchesCard(t, cardId) { return !cardId || t.creditCardId===cardId; }
+
 function getInvoiceMonthForDate(dateStr, closingDay) {
   const [y,m,d]=dateStr.split('-').map(Number);
   if (d>=closingDay) {
@@ -1367,18 +1422,19 @@ function getOpenInvoiceMonth() {
   return getInvoiceMonthForDate(todayStr(), state.settings.closingDay||22);
 }
 // Total de uma fatura específica, somando as transações de cartão pelo ciclo de fechamento (não pelo mês-calendário)
-// Inclui também recorrências de cartão que caem nesse ciclo
-function getInvoiceTotal(ym) {
+// Inclui também recorrências de cartão que caem nesse ciclo.
+// cardId opcional: quando informado, soma só o cartão especificado; quando omitido, soma TODOS os cartões (agregado).
+function getInvoiceTotal(ym, cardId) {
   const closingDay=state.settings.closingDay||22;
   const prevYm=prevInvoiceMonth(ym);
   // Transações avulsas/parceladas de cartão
   const txTotal=state.transactions
-    .filter(t=>(t.type==='credit'||t.type==='card') && getInvoiceMonthForDate(t.date,closingDay)===ym)
+    .filter(t=>(t.type==='credit'||t.type==='card') && getInvoiceMonthForDate(t.date,closingDay)===ym && txMatchesCard(t,cardId))
     .reduce((s,t)=>s+t.amount,0);
   // Recorrências de cartão: dia < closingDay → cobrança cai no próprio mês da fatura (ym);
   // dia >= closingDay → cobrança cai no mês anterior (prevYm), mas já "virou" para esta fatura.
   const recTotal=state.recurring
-    .filter(r=>r.type==='card')
+    .filter(r=>r.type==='card'&&txMatchesCard(r,cardId))
     .reduce((s,r)=>{
       const day=Math.min(r.day||1,28);
       const calMonth=day<closingDay?ym:prevYm;
@@ -1537,6 +1593,29 @@ function toggleCardBreakdown(type) {
       </div>`;
     }
     detail.innerHTML = html || '<div class="text-xs" style="color:var(--text-muted)">Nenhuma conta com saldo</div>';
+  } else if(type === 'invoice') {
+    const closingDay = state.settings.closingDay||22;
+    const cards = state.creditCards||[];
+    let html = '';
+    if(cards.length === 0) {
+      const info = getOpenInvoiceInfo();
+      html = `<div class="flex items-center justify-between py-1">
+        <div><span class="text-xs text-white">Fatura em aberto</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${closingDay} · ${monthLabel(info.ym)}</div></div>
+        <span class="text-xs font-semibold" style="color:var(--red)">${fmt(info.total)}</span>
+      </div>`;
+    } else {
+      html = cards.map(c=>{
+        const info = getOpenInvoiceInfo(c.id);
+        return `<div class="flex items-center justify-between py-1">
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-lg flex items-center justify-center" style="background:${c.color||'#a855f7'}22"><i class="fa-solid ${c.icon||'fa-credit-card'} text-xs" style="color:${c.color||'#a855f7'}"></i></div>
+            <div><span class="text-xs text-white">${escHtml(c.name)}</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${closingDay} · ${monthLabel(info.ym)}</div></div>
+          </div>
+          <span class="text-xs font-semibold" style="color:var(--red)">${fmt(info.total)}</span>
+        </div>`;
+      }).join('');
+    }
+    detail.innerHTML = html;
   } else if(type === 'expenses') {
     const {fixedTotal, regularTotal} = getMonthExpensesDetailed(ym, catFilter);
     const row = (label, value, sub='') => `<div class="flex items-center justify-between py-1">
@@ -1578,6 +1657,19 @@ function toggleCardBreakdown(type) {
 function renderAccountBreakdown() {}
 function renderExpensesBreakdown() {}
 function renderProjectionBreakdown() {}
+// Retorna a fatura "em aberto" (a última fechada ainda não paga, ou a que está aberta agora)
+// para um cartão específico, ou agregada (cardId omitido = soma de todos).
+function getOpenInvoiceInfo(cardId) {
+  const openYm=getOpenInvoiceMonth();
+  const closedYm=prevInvoiceMonth(openYm);
+  const closedTotal=getInvoiceTotal(closedYm,cardId);
+  const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
+  const showClosedAsMain=closedTotal>0&&!closedPaid;
+  const ym=showClosedAsMain?closedYm:openYm;
+  const total=showClosedAsMain?closedTotal:getInvoiceTotal(openYm,cardId);
+  return {ym,total,isClosed:showClosedAsMain};
+}
+
 function toggleAccountBreakdown() { toggleCardBreakdown('account'); }
 function toggleExpensesBreakdown() { toggleCardBreakdown('expenses'); }
 function toggleProjectionBreakdown() { toggleCardBreakdown('projection'); }
@@ -1598,7 +1690,11 @@ function renderDashboard() {
   }
 
   const accountExp=getMonthAccountExpenses(ym,catFilter);
-  const cardInv=getMonthCardInvoice(ym,catFilter);
+  // Fix 7: card-invoice = soma de todas as faturas em aberto (não o total do mês-calendário)
+  const cards=state.creditCards||[];
+  const cardInv=cards.length>0
+    ? cards.reduce((s,c)=>s+getOpenInvoiceInfo(c.id).total,0)
+    : getOpenInvoiceInfo().total;
   const projection=getMonthProjection(ym,catFilter);
   const income=getMonthIncome(ym,catFilter);
   // Card de despesas: soma avulsas + fixas pagas (recorrências account)
@@ -1620,7 +1716,7 @@ function renderDashboard() {
   // Recent
   let allTx=getMonthTransactions(ym);
   if(catFilter)allTx=allTx.filter(t=>t.category===catFilter);
-  allTx.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  allTx=sortTransactionsForDisplay(allTx);
   const recentEl=document.getElementById('recent-list');
   const recent=allTx.slice(0,5);
   recentEl.innerHTML=recent.length===0
@@ -1651,7 +1747,7 @@ function txItemHTML(t,clickable=true) {
   const amountColor=income?'var(--green)':'var(--red)';
   const sign=income?'+':'-';
   const installBadge=t._installmentOf?`<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);font-size:10px">${t._part}/${t._total}</span>`:'';
-  const onclick=clickable&&!t.isRecurring?`onclick="openEditTx('${t.id}')"` :'';
+  const onclick=clickable?(t.isRecurring?`onclick="openEditRecurringFromTx('${t.id}')"`:`onclick="openEditTx('${t.id}')"`):'';
   // Conta: conta corrente só ícone; demais contas ícone + nome curto
   const accInfo=t.accountId?ACCOUNT_TYPES.find(a=>a.id===t.accountId):null;
   let accBadge='';
@@ -1931,7 +2027,7 @@ function renderTransactions() {
     });
   }
 
-  txs.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  txs=sortTransactionsForDisplay(txs);
 
   // Info de resultados
   const infoEl=document.getElementById('tx-results-info');
@@ -1953,26 +2049,40 @@ function renderTransactions() {
       : currentTxTab==='card'?renderTxGroupedByInvoice(txs):txs.map(t=>txItemHTML(t)).join('');
 }
 
+function renderCardSelectorTabs() {
+  const el=document.getElementById('card-selector-tabs');
+  if(!el)return;
+  const cards=state.creditCards||[];
+  if(cards.length===0){el.classList.add('hidden');el.innerHTML='';return;}
+  el.classList.remove('hidden');
+  const selected=getSelectedCardId();
+  el.innerHTML=cards.map(c=>`<button class="btn ${c.id===selected?'btn-primary':'btn-ghost'} btn-sm" style="white-space:nowrap;flex-shrink:0" onclick="selectCreditCard('${c.id}')"><i class="fa-solid ${c.icon||'fa-credit-card'}"></i> ${escHtml(c.name)}</button>`).join('');
+}
+
+function selectCreditCard(cardId) {
+  currentCreditCardId=cardId;
+  renderCardPage();
+}
+
 /* ============================================================
    CARD PAGE
 ============================================================ */
 function renderCardPage() {
   const closingDay=state.settings.closingDay||22;
+  // Seletor de cartões (só aparece se houver cartões cadastrados; senão comportamento antigo, sem filtro)
+  renderCardSelectorTabs();
+  const cardId=getSelectedCardId();
+
   const openYm=getOpenInvoiceMonth();
   const closedYm=prevInvoiceMonth(openYm);
-  const closedTotal=getInvoiceTotal(closedYm);
-  const closedPaid=state.invoicePaid?.[closedYm];
+  const closedTotal=getInvoiceTotal(closedYm,cardId);
+  const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
   // Mostra a última fatura fechada como principal enquanto ela não for paga; depois disso, mostra a fatura aberta.
   const showClosedAsMain=closedTotal>0&&!closedPaid;
   const mainYm=showClosedAsMain?closedYm:openYm;
-  const mainTotal=showClosedAsMain?closedTotal:getInvoiceTotal(openYm);
+  const mainTotal=showClosedAsMain?closedTotal:getInvoiceTotal(openYm,cardId);
   currentCardInvoiceYm=mainYm;
 
-  let futureTotal=0;
-  for(const tx of state.transactions){
-    if(tx.type!=='credit'||!tx._installmentOf)continue;
-    if(getInvoiceMonthForDate(tx.date,closingDay)>mainYm)futureTotal+=tx.amount;
-  }
   setEl('invoice-total',fmt(mainTotal));
   setEl('card-invoice-title',`Fatura de ${monthLabel(mainYm)}`);
   document.getElementById('card-closing-badge').innerHTML=showClosedAsMain
@@ -1982,7 +2092,7 @@ function renderCardPage() {
   const nextPreviewEl=document.getElementById('card-next-invoice-preview');
   if(nextPreviewEl){
     if(showClosedAsMain){
-      const openTotal=getInvoiceTotal(openYm);
+      const openTotal=getInvoiceTotal(openYm,cardId);
       nextPreviewEl.innerHTML=`<div class="text-xs" style="color:var(--text-muted)">Próxima fatura (em aberto)</div><div class="text-sm font-semibold text-white">${monthLabel(openYm)} · ${fmt(openTotal)}</div>`;
       nextPreviewEl.classList.remove('hidden');
     } else {
@@ -1992,7 +2102,7 @@ function renderCardPage() {
   }
 
   // Fix 4: Pay invoice button
-  const paid=state.invoicePaid?.[mainYm];
+  const paid=state.invoicePaid?.[invoiceKey(mainYm,cardId)];
   const paidBadgeEl=document.getElementById('card-invoice-paid-badge');
   const payAreaEl=document.getElementById('invoice-pay-area');
   if(paidBadgeEl){
@@ -2009,8 +2119,7 @@ function renderCardPage() {
 
   // Lista de lançamentos: mantém o filtro pelo mês navegado, como já era, só agrupando por fatura
   const ym=state.currentMonth;
-  const txs=getMonthTransactions(ym).filter(t=>t.type==='credit'||t.type==='card');
-  txs.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const txs=sortTransactionsForDisplay(getMonthTransactions(ym).filter(t=>(t.type==='credit'||t.type==='card')&&txMatchesCard(t,cardId)));
   const el=document.getElementById('card-tx-list');
   el.innerHTML=txs.length===0?'<div class="empty-state"><i class="fa-solid fa-credit-card"></i><br>Nenhum lançamento</div>':renderTxGroupedByInvoice(txs);
 
@@ -2019,7 +2128,7 @@ function renderCardPage() {
   const navCard=document.getElementById('card-month-nav-invoice');
   if(navCard){
     if(navInvoiceYm!==mainYm){
-      const navTotal=getInvoiceTotal(navInvoiceYm);
+      const navTotal=getInvoiceTotal(navInvoiceYm,cardId);
       document.getElementById('card-nav-month-label').textContent=monthLabel(navInvoiceYm);
       document.getElementById('card-nav-invoice-total').textContent=fmt(navTotal);
       navCard.style.display='';
@@ -2040,12 +2149,13 @@ function renderInvoicesPage() {
     const d=new Date(cy,cm-1+i,1);
     months.push(monthStr(d.getFullYear(),d.getMonth()));
   }
+  const cardId=getSelectedCardId();
   _renderInvoicesChart(months);
   const listEl=document.getElementById('invoices-list');
   if(!listEl)return;
   listEl.innerHTML='<div class="pt-2">'+months.map(ym=>{
-    const total=getInvoiceTotal(ym);
-    const paid=state.invoicePaid?.[ym];
+    const total=getInvoiceTotal(ym,cardId);
+    const paid=state.invoicePaid?.[invoiceKey(ym,cardId)];
     const isFuture=ym>getOpenInvoiceMonth();
     const color=paid?'var(--green)':isFuture?'var(--text-muted)':'var(--red)';
     return `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border)">
@@ -2061,10 +2171,11 @@ function _renderInvoicesChart(months,simData=null) {
   const canvasEl=document.getElementById('chart-invoices');
   if(!canvasEl)return;
   if(chartInvoices){chartInvoices.destroy();chartInvoices=null;}
-  const values=months.map(ym=>getInvoiceTotal(ym));
+  const cardId=getSelectedCardId();
+  const values=months.map(ym=>getInvoiceTotal(ym,cardId));
   const labels=months.map(ym=>monthLabel(ym).substring(0,3)+'/'+ym.split('-')[0].slice(2));
   const bgColors=months.map(ym=>{
-    const paid=state.invoicePaid?.[ym];
+    const paid=state.invoicePaid?.[invoiceKey(ym,cardId)];
     return paid?'rgba(34,197,94,.6)':'rgba(168,85,247,.6)';
   });
   const datasets=[{
@@ -2141,15 +2252,17 @@ function renderInstallmentsCard() {
   const el=document.getElementById('card-installments-list');
   if(!el)return;
   const closingDay=state.settings.closingDay||22;
+  const cardId=getSelectedCardId();
   // Fatura atual (a que está sendo exibida no topo da página de cartão)
   const openYm=getOpenInvoiceMonth();
   const closedYm=prevInvoiceMonth(openYm);
-  const closedPaid=state.invoicePaid?.[closedYm];
-  const currentInvoiceYm=(getInvoiceTotal(closedYm)>0&&!closedPaid)?closedYm:openYm;
+  const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
+  const currentInvoiceYm=(getInvoiceTotal(closedYm,cardId)>0&&!closedPaid)?closedYm:openYm;
 
   const groups={};
   for(const tx of state.transactions){
     if(tx.type!=='credit'||!tx._installmentOf)continue;
+    if(!txMatchesCard(tx,cardId))continue;
     if(!groups[tx._installmentOf])groups[tx._installmentOf]={txs:[],description:''};
     groups[tx._installmentOf].txs.push(tx);
     groups[tx._installmentOf].description=tx.description.replace(/\s+\d+\/\d+$/,'');
@@ -2213,7 +2326,8 @@ function renderInstallmentsCard() {
 // Fix 4: open pay invoice modal
 function openPayInvoice() {
   const ym=currentCardInvoiceYm||state.currentMonth;
-  const total=getInvoiceTotal(ym);
+  const cardId=getSelectedCardId();
+  const total=getInvoiceTotal(ym,cardId);
   document.getElementById('pay-invoice-month').textContent=monthLabel(ym);
   document.getElementById('pay-invoice-total').textContent=fmt(total);
   populateAccountSelects();
@@ -2222,10 +2336,11 @@ function openPayInvoice() {
 
 function confirmPayInvoice() {
   const ym=currentCardInvoiceYm||state.currentMonth;
+  const cardId=getSelectedCardId();
   const accountId=document.getElementById('pay-invoice-account').value;
-  const total=getInvoiceTotal(ym);
+  const total=getInvoiceTotal(ym,cardId);
   if(!state.invoicePaid)state.invoicePaid={};
-  state.invoicePaid[ym]={paid:true,accountId,amount:total,date:todayStr()};
+  state.invoicePaid[invoiceKey(ym,cardId)]={paid:true,accountId,amount:total,date:todayStr()};
   adjustAccountBalance(accountId,-total);
   saveState();closeModal('pay-invoice');renderCardPage();
   toast(`Fatura de ${monthLabel(ym)} paga! ${fmt(total)} debitado.`);
@@ -2233,10 +2348,12 @@ function confirmPayInvoice() {
 
 function unpayInvoice() {
   const ym=currentCardInvoiceYm||state.currentMonth;
-  const paid=state.invoicePaid?.[ym];
+  const cardId=getSelectedCardId();
+  const key=invoiceKey(ym,cardId);
+  const paid=state.invoicePaid?.[key];
   if(!paid||!confirm('Desfazer pagamento da fatura?'))return;
   adjustAccountBalance(paid.accountId, paid.amount);
-  delete state.invoicePaid[ym];
+  delete state.invoicePaid[key];
   saveState();renderCardPage();toast('Pagamento desfeito.','info');
 }
 
@@ -2464,7 +2581,15 @@ function openPayRecurring(recId) {
   document.getElementById('pay-rec-confirm-btn-text').textContent=isInc?'Confirmar Recebimento':'Confirmar Pagamento';
   populateAccountSelects();
   if(isInc&&rec.accountId)document.getElementById('pay-rec-account').value=rec.accountId;
+  // Fix 3: reset do toggle "pago em outro dia" e data padrão = hoje
+  const dateCheck=document.getElementById('pay-rec-other-date-check');
+  if(dateCheck){dateCheck.checked=false;toggleRecPayDate(dateCheck);}
+  document.getElementById('pay-rec-date').value=todayStr();
   openModal('pay-recurring');
+}
+
+function toggleRecPayDate(cb){
+  document.getElementById('pay-rec-date-wrap').classList.toggle('hidden',!cb.checked);
 }
 
 function confirmPayRecurring() {
@@ -2476,8 +2601,12 @@ function confirmPayRecurring() {
   const over=state.recurringOverrides[oKey];
   const amount=over?.amount!==undefined?over.amount:rec.amount;
   const isInc=rec.type==='income';
+  // Fix 3: se marcado "pago em outro dia", usa a data escolhida; senão mantém o dia cadastrado da recorrência
+  const useOtherDate=document.getElementById('pay-rec-other-date-check')?.checked;
+  const chosenDate=document.getElementById('pay-rec-date')?.value;
+  const effectiveDate=(useOtherDate&&chosenDate)?chosenDate:undefined;
   if(!state.recurringPaid)state.recurringPaid={};
-  state.recurringPaid[oKey]={paid:true,accountId,amount,date:todayStr()};
+  state.recurringPaid[oKey]={paid:true,accountId,amount,date:todayStr(),effectiveDate,paidAt:Date.now()};
   adjustAccountBalance(accountId, isInc?amount:-amount);
   saveState();closeModal('pay-recurring');renderRecurringPage();
   toast(isInc?`${rec.description} recebida! ${fmt(amount)} creditado.`:`${rec.description} pago! ${fmt(amount)} debitado.`);
@@ -3152,7 +3281,7 @@ function openModal(name) {
     populateCategorySelect('debt-category','outros');
     populateAccountSelects();
   }
-  if(name==='add-recurring'){document.getElementById('rec-description').value='';document.getElementById('rec-amount').value='';document.getElementById('rec-day').value='';setRecType('account');}
+  if(name==='add-recurring'){document.getElementById('rec-description').value='';document.getElementById('rec-amount').value='';document.getElementById('rec-day').value='';populateAccountSelects();setRecType('account');}
   if(name==='piggy-add'){document.getElementById('piggy-add-amount').value='';document.getElementById('piggy-add-desc').value='';populateAccountSelects();}
   if(name==='piggy-withdraw'){document.getElementById('piggy-withdraw-amount').value='';document.getElementById('piggy-withdraw-desc').value='';}
   if(name==='piggy-goal'){const box=getCurrentSavingsBox();document.getElementById('piggy-goal-amount').value=box?.goal||'';}
@@ -3192,6 +3321,9 @@ function setTxType(type) {
   // Fix 10: hide "pagar com" for card type (invoice paid separately)
   const accountWrap=document.getElementById('tx-account-wrap');
   if(accountWrap)accountWrap.classList.toggle('hidden',type==='credit');
+  // Fix 6: mostrar seletor de cartão só quando houver mais de um cartão cadastrado
+  const ccWrap=document.getElementById('tx-creditcard-wrap');
+  if(ccWrap)ccWrap.classList.toggle('hidden',!(type==='credit'&&(state.creditCards||[]).length>0));
 }
 
 function toggleInstallment(cb){document.getElementById('installment-count-wrap').classList.toggle('hidden',!cb.checked);}
@@ -3208,6 +3340,7 @@ function addTransaction() {
   if(!amount||amount<=0){toast('Informe um valor válido','error');return;}
   if(!date){toast('Informe a data','error');return;}
   const type=currentTxType;
+  const creditCardId=type==='credit'?(document.getElementById('tx-creditcard')?.value||undefined):undefined;
   const isInstallment=type==='credit'&&document.getElementById('tx-installment-check').checked;
   const numInstallments=isInstallment?(parseInt(document.getElementById('tx-installments').value)||2):1;
   if(isInstallment){
@@ -3217,11 +3350,11 @@ function addTransaction() {
     for(let i=0;i<numInstallments;i++){
       const txDate=new Date(y,m-1+i,d2);
       const txDateStr=`${txDate.getFullYear()}-${String(txDate.getMonth()+1).padStart(2,'0')}-${String(d2).padStart(2,'0')}`;
-      state.transactions.push({id:uid(),type,description:`${description} ${i+1}/${numInstallments}`,amount:partAmount,date:txDateStr,category,notes,_installmentOf:groupId,_part:i+1,_total:numInstallments});
+      state.transactions.push({id:uid(),type,description:`${description} ${i+1}/${numInstallments}`,amount:partAmount,date:txDateStr,category,notes,_installmentOf:groupId,_part:i+1,_total:numInstallments,creditCardId});
     }
     toast(`${numInstallments} parcelas criadas!`);
   } else {
-    state.transactions.push({id:uid(),type,description,amount,date,category,notes,accountId});
+    state.transactions.push({id:uid(),type,description,amount,date,category,notes,accountId,creditCardId});
     // Fix 10: for debit transactions, immediately deduct from account
     if(type==='debit'||type==='account'){
       adjustAccountBalance(accountId, -amount);
@@ -3249,11 +3382,17 @@ function openEditTx(id) {
   const accountWrap=document.getElementById('edit-tx-account-wrap');
   const catWrap=document.getElementById('edit-tx-category-wrap');
   const isDebit=(tx.type==='debit'||tx.type==='account');
+  const isCredit=(tx.type==='credit'||tx.type==='card');
   const isIncomeTx=isIncome(tx);
   if(accountWrap)accountWrap.classList.toggle('hidden',!isDebit);
   if(catWrap)catWrap.classList.toggle('hidden',isIncomeTx);
   const accSel=document.getElementById('edit-tx-account');
   if(accSel&&tx.accountId)accSel.value=tx.accountId;
+  // Fix 6: seletor de cartão, só quando for transação de cartão e houver cartões cadastrados
+  const ccWrap=document.getElementById('edit-tx-creditcard-wrap');
+  if(ccWrap)ccWrap.classList.toggle('hidden',!(isCredit&&(state.creditCards||[]).length>0));
+  const ccSel=document.getElementById('edit-tx-creditcard');
+  if(ccSel&&tx.creditCardId)ccSel.value=tx.creditCardId;
   openModal('edit-tx');
 }
 
@@ -3275,6 +3414,9 @@ function saveEditTransaction() {
   state.transactions[idx].category=document.getElementById('edit-tx-category').value;
   state.transactions[idx].notes=document.getElementById('edit-tx-notes').value.trim();
   if(tx.type==='debit'||tx.type==='account') state.transactions[idx].accountId=newAccountId;
+  if((tx.type==='credit'||tx.type==='card')&&(state.creditCards||[]).length>0){
+    state.transactions[idx].creditCardId=document.getElementById('edit-tx-creditcard')?.value||undefined;
+  }
   saveState();closeModal('edit-tx');refreshPage(currentPage);toast('Atualizado!');
 }
 
@@ -3299,6 +3441,8 @@ function setRecType(type){
   const isInc=type==='income';
   document.getElementById('rec-category-wrap')?.classList.toggle('hidden',isInc);
   document.getElementById('rec-account-wrap')?.classList.toggle('hidden',!isInc);
+  // Fix 6: seletor de cartão só quando tipo=cartão e houver cartões cadastrados
+  document.getElementById('rec-creditcard-wrap')?.classList.toggle('hidden',!(type==='card'&&(state.creditCards||[]).length>0));
 }
 
 function addRecurring(){
@@ -3309,21 +3453,33 @@ function addRecurring(){
   const isInc=type==='income';
   const category=isInc?'receita':document.getElementById('rec-category').value;
   const accountId=isInc?(document.getElementById('rec-account')?.value||'contacorrente'):undefined;
+  const creditCardId=type==='card'?(document.getElementById('rec-creditcard')?.value||undefined):undefined;
   if(!description){toast('Informe a descrição','error');return;}
   if(!amount||amount<=0){toast('Informe um valor válido','error');return;}
-  state.recurring.push({id:uid(),type,description,amount,day,category,accountId,startMonth:state.currentMonth});
+  state.recurring.push({id:uid(),type,description,amount,day,category,accountId,creditCardId,startMonth:state.currentMonth});
   saveState();closeModal('add-recurring');renderRecurringPage();toast('Recorrência criada!');
 }
 
-function openEditRecurring(id){
+function openEditRecurring(id, ymParam){
   const rec=state.recurring.find(r=>r.id===id);if(!rec)return;
-  const ym=state.currentMonth;
+  const ym=ymParam||state.currentMonth;
   const over=state.recurringOverrides[`${id}_${ym}`];
   document.getElementById('edit-rec-id').value=id;
+  document.getElementById('edit-rec-ym').value=ym;
   const recAmtVal=over?.amount!==undefined?over.amount:rec.amount;
   document.getElementById('edit-rec-amount').value=recAmtVal.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('edit-rec-description').value=over?.description||rec.description;
   openModal('edit-recurring');
+}
+
+// Fix 5: permite editar uma ocorrência de recorrência diretamente a partir da lista de Transações.
+// O id composto vem no formato "recId_ym" (ver getMonthTransactions); separamos os dois.
+function openEditRecurringFromTx(compositeId){
+  const underscoreIdx=compositeId.indexOf('_');
+  if(underscoreIdx===-1)return;
+  const recId=compositeId.slice(0,underscoreIdx);
+  const ym=compositeId.slice(underscoreIdx+1);
+  openEditRecurring(recId, ym);
 }
 
 function saveRecurring(){
@@ -3331,12 +3487,25 @@ function saveRecurring(){
   const amount=parseBRL(document.getElementById('edit-rec-amount').value);
   const desc=document.getElementById('edit-rec-description').value.trim();
   const scope=document.getElementById('edit-rec-scope').value;
-  const ym=state.currentMonth;
+  const ym=document.getElementById('edit-rec-ym')?.value||state.currentMonth;
   if(!amount||amount<=0){toast('Valor inválido','error');return;}
   const rec=state.recurring.find(r=>r.id===id);if(!rec)return;
   if(scope==='all'){rec.amount=amount;rec.description=desc;for(const k of Object.keys(state.recurringOverrides)){if(k.startsWith(id+'_'))delete state.recurringOverrides[k];}}
   else if(scope==='future'){rec.amount=amount;rec.description=desc;for(const k of Object.keys(state.recurringOverrides)){if(k.startsWith(id+'_')&&k.slice(id.length+1)>=ym)delete state.recurringOverrides[k];}}
   else{state.recurringOverrides[`${id}_${ym}`]={amount,description:desc};}
+  // Fix 4: se essa ocorrência (ym) já foi paga, reconcilia o valor pago e o saldo da conta
+  // com o novo valor — sem isso, o saldo ficava travado no valor antigo mesmo após editar.
+  const pKey=`${id}_${ym}`;
+  const paidRecord=state.recurringPaid?.[pKey];
+  if(paidRecord&&paidRecord.paid&&(rec.type==='account'||rec.type==='income')){
+    const oldPaidAmount=paidRecord.amount;
+    const delta=amount-oldPaidAmount;
+    if(delta!==0){
+      const isInc=rec.type==='income';
+      adjustAccountBalance(paidRecord.accountId, isInc?delta:-delta);
+      paidRecord.amount=amount;
+    }
+  }
   saveState();closeModal('edit-recurring');renderRecurringPage();toast('Recorrência atualizada!');
 }
 
@@ -3370,6 +3539,15 @@ function populateAllCategorySelects() {
 function populateAccountSelects() {
   const opts = ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
   ['income-account','tx-account','edit-tx-account','pay-invoice-account','pay-rec-account','rec-account','piggy-add-account','debt-account','pay-debt-account'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.innerHTML=opts;
+  });
+  populateCreditCardSelects();
+}
+
+function populateCreditCardSelects() {
+  const cards=state.creditCards||[];
+  const opts=cards.map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+  ['tx-creditcard','edit-tx-creditcard','rec-creditcard'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.innerHTML=opts;
   });
 }
