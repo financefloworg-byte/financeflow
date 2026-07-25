@@ -819,11 +819,15 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
       <div id="settings-panel-access" class="hidden">
         <h3 class="font-bold text-white mb-4">Acesso</h3>
         <div class="card">
-          <p class="text-xs mb-4" style="color:var(--text-muted)">Senha de 4 dígitos para proteger o acesso ao app.</p>
-          <div class="mb-3"><label class="label">Senha atual</label><input type="password" class="input" id="pin-current" maxlength="4" inputmode="numeric" placeholder="••••"/></div>
-          <div class="mb-3"><label class="label">Nova senha</label><input type="password" class="input" id="pin-new" maxlength="4" inputmode="numeric" placeholder="••••"/></div>
-          <div class="mb-4"><label class="label">Confirmar nova senha</label><input type="password" class="input" id="pin-confirm" maxlength="4" inputmode="numeric" placeholder="••••"/></div>
-          <button class="btn btn-primary" onclick="changePin()"><i class="fa-solid fa-floppy-disk"></i> Salvar Senha</button>
+          <p class="text-xs mb-1" style="color:var(--text-muted)">Conta conectada</p>
+          <p class="text-sm font-semibold text-white mb-4" id="access-current-email">—</p>
+          <div id="access-password-section">
+            <p class="text-xs mb-4" style="color:var(--text-muted)">Para alterar sua senha, enviaremos um link de redefinição para o seu email.</p>
+            <button class="btn btn-primary" onclick="requestPasswordReset()"><i class="fa-solid fa-key"></i> Enviar email de redefinição de senha</button>
+          </div>
+          <div id="access-google-section" class="hidden">
+            <p class="text-xs" style="color:var(--text-muted)"><i class="fa-brands fa-google mr-1"></i>Você entra com sua Conta Google. Gerencie a senha diretamente nas configurações da sua Conta Google.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -860,6 +864,27 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
   </div>
 
 </main>
+
+<!-- MODAL: Editar cartão de crédito -->
+<div id="modal-edit-credit-card" class="modal-overlay">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-bold text-white text-lg"><i class="fa-solid fa-pen mr-2" style="color:var(--blue)"></i>Editar Cartão</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('edit-credit-card')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="edit-cc-id"/>
+    <div class="flex items-center gap-3 mb-4 p-3 rounded-xl" style="background:var(--muted)">
+      <div id="edit-cc-icon-preview" class="w-10 h-10 rounded-xl flex items-center justify-center"><i id="edit-cc-icon-preview-i" class="fa-solid fa-credit-card"></i></div>
+      <button class="btn btn-ghost btn-sm" onclick="openEditCreditCardBankPicker()"><i class="fa-solid fa-repeat mr-1"></i>Trocar banco/ícone</button>
+    </div>
+    <div class="mb-3"><label class="label">Nome</label><input class="input" id="edit-cc-name" placeholder="Ex.: Nubank Roxinho"/></div>
+    <div class="mb-4"><label class="label">Últimos 4 dígitos</label><input class="input" id="edit-cc-last4" maxlength="4" inputmode="numeric" placeholder="0000"/></div>
+    <div class="flex gap-2 justify-end">
+      <button class="btn btn-ghost" onclick="closeModal('edit-credit-card')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditCreditCard()"><i class="fa-solid fa-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===================== MODALS ===================== -->
 
@@ -1389,6 +1414,32 @@ function getMonthCardInvoice(ym, catFilter='') {
 
 // ---- Ciclo de fatura do cartão (baseado no dia de fechamento) ----
 // Dias >= closingDay já pertencem à fatura do mês seguinte (comportamento padrão dos cartões).
+// Migra dados antigos (de antes da função multi-cartão existir) para um cartão "Principal" de
+// verdade, editável como qualquer outro. Roda uma única vez (controlado por legacyCardMigrated).
+function ensureDefaultCreditCard() {
+  if(!state.creditCards) state.creditCards=[];
+  if(state.legacyCardMigrated) return;
+  const defaultCard={id:'card_default_'+Date.now().toString(36),name:'Cartão Principal',last4:'',color:'#a855f7',icon:'fa-credit-card'};
+  state.creditCards.unshift(defaultCard);
+  const defaultId=defaultCard.id;
+  for(const tx of state.transactions){
+    if((tx.type==='credit'||tx.type==='card')&&!tx.creditCardId) tx.creditCardId=defaultId;
+  }
+  for(const rec of state.recurring){
+    if(rec.type==='card'&&!rec.creditCardId) rec.creditCardId=defaultId;
+  }
+  // Migra as chaves antigas de fatura paga (só "YYYY-MM") para o novo formato "YYYY-MM__cardId"
+  if(state.invoicePaid){
+    const newInvoicePaid={};
+    for(const [key,val] of Object.entries(state.invoicePaid)){
+      newInvoicePaid[key.includes('__')?key:`${key}__${defaultId}`]=val;
+    }
+    state.invoicePaid=newInvoicePaid;
+  }
+  state.legacyCardMigrated=true;
+  saveState();
+}
+
 // ---- Múltiplos cartões de crédito ----
 let currentCreditCardId = null;
 // Retorna o id do cartão selecionado na página de Cartão. Se não houver cartões cadastrados
@@ -2757,6 +2808,7 @@ function openSettingsSection(section) {
     renderAccountsList();
     renderCreditCardsList();
   }
+  if(section==='access'&&typeof window.renderAccessSection==='function') window.renderAccessSection();
 }
 
 function renderAccountsList() {
@@ -2782,6 +2834,7 @@ function renderCreditCardsList() {
     <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${c.color||'#a855f7'}22"><i class="fa-solid ${c.icon||'fa-credit-card'} text-xs" style="color:${c.color||'#a855f7'}"></i></div>
     <span class="text-sm flex-1" style="color:var(--text)">${escHtml(c.name)}</span>
     <span class="text-xs" style="color:var(--text-muted)">**** ${c.last4||'0000'}</span>
+    <button class="btn btn-ghost btn-icon" style="width:26px;height:26px" onclick="openEditCreditCard('${c.id}')"><i class="fa-solid fa-pen text-xs" style="color:var(--blue)"></i></button>
     <button class="btn btn-ghost btn-icon" style="width:26px;height:26px" onclick="removeCreditCard('${c.id}')"><i class="fa-solid fa-trash text-xs" style="color:var(--red)"></i></button>
   </div>`).join('');
 }
@@ -3019,10 +3072,85 @@ function removeAccount(id) {
 }
 
 function removeCreditCard(id) {
-  if(!confirm('Remover este cartão?'))return;
-  if(!state.creditCards)return;
+  const card=state.creditCards.find(c=>c.id===id);if(!card)return;
+  const inUse=state.transactions.some(t=>t.creditCardId===id)||state.recurring.some(r=>r.creditCardId===id);
+  if(inUse){toast('Este cartão tem lançamentos associados. Edite-os ou apague-os antes de remover.','error');return;}
+  if(!confirm(`Remover o cartão "${card.name}"?`))return;
   state.creditCards=state.creditCards.filter(c=>c.id!==id);
-  saveState();renderCreditCardsList();toast('Cartão removido.','info');
+  saveState();renderCreditCardsList();renderCardSelectorTabs();toast('Cartão removido.','info');
+}
+
+// ---- Editar cartão de crédito existente (nome, últimos dígitos, banco/ícone) ----
+let _editCardTemp=null;
+
+function openEditCreditCard(id) {
+  const card=state.creditCards.find(c=>c.id===id);if(!card)return;
+  _editCardTemp={id,name:card.name,last4:card.last4||'',color:card.color||'#a855f7',icon:card.icon||'fa-credit-card'};
+  renderEditCreditCardModal();
+  openModal('edit-credit-card');
+}
+
+function renderEditCreditCardModal() {
+  if(!_editCardTemp)return;
+  document.getElementById('edit-cc-id').value=_editCardTemp.id;
+  document.getElementById('edit-cc-name').value=_editCardTemp.name;
+  document.getElementById('edit-cc-last4').value=_editCardTemp.last4;
+  const prev=document.getElementById('edit-cc-icon-preview');
+  const prevI=document.getElementById('edit-cc-icon-preview-i');
+  if(prev)prev.style.background=(_editCardTemp.color||'#a855f7')+'22';
+  if(prevI){prevI.className=`fa-solid ${_editCardTemp.icon}`;prevI.style.color=_editCardTemp.color;}
+}
+
+function openEditCreditCardBankPicker() {
+  if(!_editCardTemp)return;
+  // Preserva o que já foi digitado antes de trocar de tela
+  const nameEl=document.getElementById('edit-cc-name');if(nameEl)_editCardTemp.name=nameEl.value;
+  const last4El=document.getElementById('edit-cc-last4');if(last4El)_editCardTemp.last4=last4El.value;
+  closeModal('edit-credit-card');
+  const bankItems=BANK_ICONS.filter(b=>!b.isOthers).map(b=>`
+    <button class="card flex items-center gap-2 text-left" style="padding:10px;cursor:pointer;border:1px solid var(--border)" onclick="_pickerSelectIconOnly('${b.id}')">
+      ${_bankLogoImg(b,32)}
+      <span class="text-xs" style="color:var(--text)">${b.label}</span>
+    </button>`).join('');
+  const iconGrid=ACCOUNT_FA_ICONS.map(ic=>`
+    <button class="rounded-lg flex items-center justify-center" style="width:32px;height:32px;background:var(--muted);cursor:pointer;border:1px solid var(--border)" onclick="_pickerSelectCustomIconOnly('${ic}')">
+      <i class="fa-solid ${ic} text-xs" style="color:var(--text-muted)"></i>
+    </button>`).join('');
+  const html=`
+    <div class="flex items-center justify-between mb-4">
+      <button class="btn btn-ghost btn-sm" onclick="closeGenericPicker();openModal('edit-credit-card')"><i class="fa-solid fa-arrow-left text-xs mr-1"></i>Voltar</button>
+      <button class="btn btn-ghost btn-icon" onclick="closeGenericPicker();openModal('edit-credit-card')"><i class="fa-solid fa-xmark text-xs"></i></button>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mb-4" style="max-height:45vh;overflow-y:auto">${bankItems}</div>
+    <div class="text-xs font-semibold uppercase mb-2" style="color:var(--text-muted)">Ou escolha um ícone</div>
+    <div class="flex flex-wrap gap-2">${iconGrid}</div>`;
+  _showGenericPicker(html);
+}
+
+function _pickerSelectIconOnly(bankId) {
+  const b=BANK_ICONS.find(x=>x.id===bankId);if(!b||!_editCardTemp)return;
+  _editCardTemp.icon=b.icon;_editCardTemp.color=b.color;
+  closeGenericPicker();openModal('edit-credit-card');renderEditCreditCardModal();
+}
+
+function _pickerSelectCustomIconOnly(icon) {
+  if(!_editCardTemp)return;
+  _editCardTemp.icon=icon;
+  closeGenericPicker();openModal('edit-credit-card');renderEditCreditCardModal();
+}
+
+function saveEditCreditCard() {
+  if(!_editCardTemp)return;
+  const card=state.creditCards.find(c=>c.id===_editCardTemp.id);if(!card)return;
+  const name=document.getElementById('edit-cc-name').value.trim();
+  if(!name){toast('Informe o nome do cartão','error');return;}
+  card.name=name;
+  card.last4=(document.getElementById('edit-cc-last4').value||'').replace(/\D/g,'').slice(-4);
+  card.color=_editCardTemp.color;
+  card.icon=_editCardTemp.icon;
+  _editCardTemp=null;
+  saveState();closeModal('edit-credit-card');renderCreditCardsList();renderCardSelectorTabs();
+  toast('Cartão atualizado!');
 }
 
 function closeSettingsSection() {
@@ -3067,12 +3195,10 @@ function toggleChartVisibility(chartId, btn) {
   saveState();
 }
 
-function clearAllDataWithPin() {
-  const pin=getStoredPin();
-  if(pin){
-    const entered=prompt('Digite sua senha de acesso para confirmar:');
-    if(entered===null)return;
-    if(entered!==pin){toast('Senha incorreta.','error');return;}
+async function clearAllDataWithPin() {
+  if(typeof window.confirmPasswordForDeletion==='function'){
+    const ok=await window.confirmPasswordForDeletion();
+    if(!ok)return;
   }
   if(!confirm('Apagar TODOS os dados? Essa ação não pode ser desfeita.'))return;
   clearAllData();
@@ -3834,6 +3960,8 @@ function init(){
   if(!state.currentSavingsBox||!state.savingsBoxes.find(b=>b.id===state.currentSavingsBox)){
     state.currentSavingsBox=state.savingsBoxes[0].id;
   }
+  // Migra o cartão de crédito "original" (dados anteriores ao recurso multi-cartão) para um objeto real
+  ensureDefaultCreditCard();
   populateAllCategorySelects();
   updateMonthLabel();
   applyTheme(state.settings?.theme||'dark');
@@ -3990,7 +4118,8 @@ init();
     getAuth, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
     GoogleAuthProvider, signInWithPopup,
-    signOut, sendPasswordResetEmail
+    signOut, sendPasswordResetEmail,
+    EmailAuthProvider, reauthenticateWithCredential
   } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -4054,6 +4183,7 @@ init();
           for(const a of state.customAccounts)
             if(!ACCOUNT_TYPES.find(x=>x.id===a.id))ACCOUNT_TYPES.push({...a,_custom:true});
         }
+        ensureDefaultCreditCard();
         applyTheme(state.settings?.theme||'dark');
         populateAllCategorySelects();
         updateMonthLabel();
@@ -4148,6 +4278,59 @@ init();
     // Limpar localStorage para não expor dados
     localStorage.removeItem('financeflow_v3');
     localStorage.removeItem('financeflow_v2');
+  };
+
+  // ── Seção "Acesso" das Configurações: adaptada ao login atual (email/senha ou Google) ──
+  window.renderAccessSection = function() {
+    const user = auth.currentUser;
+    const emailEl = document.getElementById('access-current-email');
+    const pwSection = document.getElementById('access-password-section');
+    const googleSection = document.getElementById('access-google-section');
+    if(!user||!emailEl||!pwSection||!googleSection) return;
+    emailEl.textContent = user.email || user.displayName || '—';
+    const providers = (user.providerData||[]).map(p=>p.providerId);
+    const hasPassword = providers.includes('password');
+    pwSection.classList.toggle('hidden', !hasPassword);
+    googleSection.classList.toggle('hidden', hasPassword);
+  };
+
+  window.requestPasswordReset = async function() {
+    const user = auth.currentUser;
+    if(!user||!user.email){toast('Não foi possível identificar seu email.','error');return;}
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      toast('Email de redefinição enviado! Verifique sua caixa de entrada.');
+    } catch(e) {
+      toast(friendlyError(e.code),'error');
+    }
+  };
+
+  // Confirma a identidade do usuário antes de uma ação destrutiva (apagar todos os dados).
+  // Email/senha: pede a senha atual e reautentica. Google: pede confirmação via popup do Google.
+  window.confirmPasswordForDeletion = async function() {
+    const user = auth.currentUser;
+    if(!user) return true;
+    const providers = (user.providerData||[]).map(p=>p.providerId);
+    if(providers.includes('password')){
+      const pass = prompt('Digite sua senha para confirmar a exclusão dos dados:');
+      if(pass===null) return false;
+      try {
+        const cred = EmailAuthProvider.credential(user.email, pass);
+        await reauthenticateWithCredential(user, cred);
+        return true;
+      } catch(e) {
+        toast('Senha incorreta.','error');
+        return false;
+      }
+    } else {
+      try {
+        await signInWithPopup(auth, googleProvider);
+        return true;
+      } catch(e) {
+        toast('Não foi possível confirmar sua identidade.','error');
+        return false;
+      }
+    }
   };
 </script>
 </body>
