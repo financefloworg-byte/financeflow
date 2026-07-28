@@ -396,12 +396,19 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
     <!-- Charts row -->
     <div class="charts-grid mb-6">
       <div class="card" id="chart-categories-card">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h3 class="font-bold text-sm text-white">Gastos por Categoria</h3>
           <select class="select text-xs py-1 px-2 w-auto" id="chart1-type" onchange="renderCharts()">
             <option value="doughnut">Rosca</option>
             <option value="pie">Pizza</option>
             <option value="bar">Barras</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <select class="select text-xs py-1 px-2 w-auto" id="chart1-source-filter" onchange="renderCharts()">
+            <option value="">Conta e Cartão</option>
+            <option value="account">Só Conta</option>
+            <option value="card">Só Cartão</option>
           </select>
         </div>
         <div class="chart-wrap"><canvas id="chart-categories"></canvas></div>
@@ -853,7 +860,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
               <input class="input flex-1" id="new-cat-icon" placeholder="fa-star" oninput="updateCatPreview()"/>
               <div id="new-cat-preview" class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(59,130,246,.15)"><i id="new-cat-preview-icon" class="fa-solid fa-star" style="color:#3b82f6"></i></div>
             </div>
-            <div class="flex flex-wrap gap-2 mt-2" id="cat-icon-picker"></div>
+            <div class="flex flex-wrap gap-2 mt-2" id="cat-icon-picker" style="max-height:160px;overflow-y:auto"></div>
           </div>
           <div class="flex gap-2 justify-end">
             <button class="btn btn-ghost" onclick="closeModal('add-category')">Cancelar</button>
@@ -874,11 +881,12 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
     </div>
     <input type="hidden" id="edit-cc-id"/>
     <div class="flex items-center gap-3 mb-4 p-3 rounded-xl" style="background:var(--muted)">
-      <div id="edit-cc-icon-preview" class="w-10 h-10 rounded-xl flex items-center justify-center"><i id="edit-cc-icon-preview-i" class="fa-solid fa-credit-card"></i></div>
+      <div id="edit-cc-icon-preview"></div>
       <button class="btn btn-ghost btn-sm" onclick="openEditCreditCardBankPicker()"><i class="fa-solid fa-repeat mr-1"></i>Trocar banco/ícone</button>
     </div>
     <div class="mb-3"><label class="label">Nome</label><input class="input" id="edit-cc-name" placeholder="Ex.: Nubank Roxinho"/></div>
-    <div class="mb-4"><label class="label">Últimos 4 dígitos</label><input class="input" id="edit-cc-last4" maxlength="4" inputmode="numeric" placeholder="0000"/></div>
+    <div class="mb-3"><label class="label">Últimos 4 dígitos</label><input class="input" id="edit-cc-last4" maxlength="4" inputmode="numeric" placeholder="0000"/></div>
+    <div class="mb-4"><label class="label">Dia de fechamento da fatura</label><input type="number" class="input" id="edit-cc-closing-day" min="1" max="28" placeholder="Ex: 22"/><p class="helper-text">O vencimento será 7 dias após o fechamento.</p></div>
     <div class="flex gap-2 justify-end">
       <button class="btn btn-ghost" onclick="closeModal('edit-credit-card')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEditCreditCard()"><i class="fa-solid fa-check"></i> Salvar</button>
@@ -1419,7 +1427,7 @@ function getMonthCardInvoice(ym, catFilter='') {
 function ensureDefaultCreditCard() {
   if(!state.creditCards) state.creditCards=[];
   if(state.legacyCardMigrated) return;
-  const defaultCard={id:'card_default_'+Date.now().toString(36),name:'Cartão Principal',last4:'',color:'#a855f7',icon:'fa-credit-card'};
+  const defaultCard={id:'card_default_'+Date.now().toString(36),name:'Cartão Principal',last4:'',color:'#a855f7',icon:'fa-credit-card',closingDay:state.settings.closingDay||22};
   state.creditCards.unshift(defaultCard);
   const defaultId=defaultCard.id;
   for(const tx of state.transactions){
@@ -1468,15 +1476,29 @@ function prevInvoiceMonth(ym) {
   const d=new Date(y,m-2,1);
   return monthStr(d.getFullYear(),d.getMonth());
 }
+// Retorna o dia de fechamento de um cartão específico; sem cardId (ou cartão sem valor próprio
+// definido), usa o dia de fechamento global das Configurações como padrão.
+function getCardClosingDay(cardId) {
+  if(cardId){
+    const card=state.creditCards?.find(c=>c.id===cardId);
+    if(card&&card.closingDay) return card.closingDay;
+  }
+  return state.settings.closingDay||22;
+}
 // Fatura que está em aberto HOJE (data real), independente do mês navegado no app
-function getOpenInvoiceMonth() {
-  return getInvoiceMonthForDate(todayStr(), state.settings.closingDay||22);
+function getOpenInvoiceMonth(cardId) {
+  return getInvoiceMonthForDate(todayStr(), getCardClosingDay(cardId));
 }
 // Total de uma fatura específica, somando as transações de cartão pelo ciclo de fechamento (não pelo mês-calendário)
 // Inclui também recorrências de cartão que caem nesse ciclo.
-// cardId opcional: quando informado, soma só o cartão especificado; quando omitido, soma TODOS os cartões (agregado).
+// cardId opcional: quando informado, soma só o cartão especificado (usando o fechamento DELE);
+// quando omitido, soma TODOS os cartões cadastrados, cada um com seu próprio dia de fechamento.
 function getInvoiceTotal(ym, cardId) {
-  const closingDay=state.settings.closingDay||22;
+  const cards=state.creditCards||[];
+  if(!cardId && cards.length>0){
+    return cards.reduce((s,c)=>s+getInvoiceTotal(ym,c.id),0);
+  }
+  const closingDay=getCardClosingDay(cardId);
   const prevYm=prevInvoiceMonth(ym);
   // Transações avulsas/parceladas de cartão
   const txTotal=state.transactions
@@ -1562,12 +1584,29 @@ function getMonthProjectionDetailed(ym, catFilter='') {
       return s + (over?.amount!==undefined ? over.amount : r.amount);
     }, 0);
 
-  // 3. Fatura do cartão do ciclo relativo ao mês navegado
-  const navInvoiceYm = getInvoiceMonthForDate(`${ym}-14`, state.settings.closingDay||22);
-  const prevNavYm = prevInvoiceMonth(navInvoiceYm);
-  const prevNavPaid = state.invoicePaid?.[prevNavYm];
-  const invoiceYm = (getInvoiceTotal(prevNavYm)>0 && !prevNavPaid) ? prevNavYm : navInvoiceYm;
-  const cardInvoice = getInvoiceTotal(invoiceYm);
+  // 3. Fatura do cartão do ciclo relativo ao mês navegado — soma por cartão, cada um com seu fechamento
+  const cards = state.creditCards||[];
+  let cardInvoice = 0;
+  let invoiceYm = ym;
+  if(cards.length>0){
+    invoiceYm = null;
+    for(const c of cards){
+      const cClosingDay=getCardClosingDay(c.id);
+      const navInvoiceYm=getInvoiceMonthForDate(`${ym}-14`, cClosingDay);
+      const prevNavYm=prevInvoiceMonth(navInvoiceYm);
+      const prevNavPaid=state.invoicePaid?.[invoiceKey(prevNavYm,c.id)];
+      const cardInvoiceYm=(getInvoiceTotal(prevNavYm,c.id)>0 && !prevNavPaid) ? prevNavYm : navInvoiceYm;
+      cardInvoice += getInvoiceTotal(cardInvoiceYm,c.id);
+      if(!invoiceYm) invoiceYm = cardInvoiceYm;
+    }
+  } else {
+    const closingDay = state.settings.closingDay||22;
+    const navInvoiceYm = getInvoiceMonthForDate(`${ym}-14`, closingDay);
+    const prevNavYm = prevInvoiceMonth(navInvoiceYm);
+    const prevNavPaid = state.invoicePaid?.[prevNavYm];
+    invoiceYm = (getInvoiceTotal(prevNavYm)>0 && !prevNavPaid) ? prevNavYm : navInvoiceYm;
+    cardInvoice = getInvoiceTotal(invoiceYm);
+  }
 
   // 4. Dívidas: parcelas pendentes que vencem no mês navegado
   let debtExpenses = 0;
@@ -1637,7 +1676,7 @@ function toggleCardBreakdown(type) {
       const balColor = bal<0?'var(--red)':'var(--green)';
       html += `<div class="flex items-center justify-between py-1">
         <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-lg flex items-center justify-center" style="background:${acc.color}22"><i class="fa-solid ${acc.icon} text-xs" style="color:${acc.color}"></i></div>
+          ${entityLogoImg(acc,24)}
           <span class="text-xs text-white">${acc.label}</span>
         </div>
         <span class="text-xs font-bold" style="color:${balColor}">${bal<0?'-':''}${fmt(Math.abs(bal))}</span>
@@ -1645,13 +1684,12 @@ function toggleCardBreakdown(type) {
     }
     detail.innerHTML = html || '<div class="text-xs" style="color:var(--text-muted)">Nenhuma conta com saldo</div>';
   } else if(type === 'invoice') {
-    const closingDay = state.settings.closingDay||22;
     const cards = state.creditCards||[];
     let html = '';
     if(cards.length === 0) {
       const info = getOpenInvoiceInfo();
       html = `<div class="flex items-center justify-between py-1">
-        <div><span class="text-xs text-white">Fatura em aberto</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${closingDay} · ${monthLabel(info.ym)}</div></div>
+        <div><span class="text-xs text-white">Fatura em aberto</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${getCardClosingDay()} · ${monthLabel(info.ym)}</div></div>
         <span class="text-xs font-semibold" style="color:var(--red)">${fmt(info.total)}</span>
       </div>`;
     } else {
@@ -1659,8 +1697,8 @@ function toggleCardBreakdown(type) {
         const info = getOpenInvoiceInfo(c.id);
         return `<div class="flex items-center justify-between py-1">
           <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-lg flex items-center justify-center" style="background:${c.color||'#a855f7'}22"><i class="fa-solid ${c.icon||'fa-credit-card'} text-xs" style="color:${c.color||'#a855f7'}"></i></div>
-            <div><span class="text-xs text-white">${escHtml(c.name)}</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${closingDay} · ${monthLabel(info.ym)}</div></div>
+            ${entityLogoImg(c,24)}
+            <div><span class="text-xs text-white">${escHtml(c.name)}</span><div class="text-xs" style="color:var(--text-muted)">Fecha dia ${getCardClosingDay(c.id)} · ${monthLabel(info.ym)}</div></div>
           </div>
           <span class="text-xs font-semibold" style="color:var(--red)">${fmt(info.total)}</span>
         </div>`;
@@ -1711,7 +1749,7 @@ function renderProjectionBreakdown() {}
 // Retorna a fatura "em aberto" (a última fechada ainda não paga, ou a que está aberta agora)
 // para um cartão específico, ou agregada (cardId omitido = soma de todos).
 function getOpenInvoiceInfo(cardId) {
-  const openYm=getOpenInvoiceMonth();
+  const openYm=getOpenInvoiceMonth(cardId);
   const closedYm=prevInvoiceMonth(openYm);
   const closedTotal=getInvoiceTotal(closedYm,cardId);
   const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
@@ -1804,9 +1842,15 @@ function txItemHTML(t,clickable=true) {
   let accBadge='';
   if(accInfo){
     const showName=t.accountId!=='contacorrente';
-    accBadge=`<span class="badge" style="background:${accInfo.color}22;color:${accInfo.color}"><i class="fa-solid ${accInfo.icon} text-xs${showName?' mr-1':''}"></i>${showName?accInfo.label:''}</span>`;
+    accBadge=`<span class="badge" style="background:${accInfo.color}22;color:${accInfo.color}">${entityLogoImg(accInfo,14)}${showName?accInfo.label:''}</span>`;
   }
-  const cardBadge=isCard?`<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple)"><i class="fa-solid fa-credit-card text-xs"></i></span>`:'';
+  // Cartão: mostra o logo e o nome do cartão específico usado nessa compra, quando conhecido
+  const cardInfo=(isCard&&t.creditCardId)?state.creditCards?.find(cc=>cc.id===t.creditCardId):null;
+  const cardBadge=isCard
+    ? (cardInfo
+        ? `<span class="badge" style="background:${cardInfo.color||'#a855f7'}22;color:${cardInfo.color||'#a855f7'}">${entityLogoImg(cardInfo,14)}${escHtml(cardInfo.name)}</span>`
+        : `<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple)"><i class="fa-solid fa-credit-card text-xs"></i></span>`)
+    : '';
   const recurIcon=t.isRecurring?`<i class="fa-solid fa-rotate text-xs ml-1" style="color:var(--blue)"></i>`:'';
   return `<div class="tx-item" ${onclick}>
     <div class="tx-icon" style="background:${c.color}22"><i class="fa-solid ${c.icon}" style="color:${c.color}"></i></div>
@@ -1863,6 +1907,10 @@ function renderCharts() {
   const catFilter=document.getElementById('dash-filter-cat')?.value||'';
   let allTx=getMonthTransactions(ym).filter(t=>isExpense(t));
   if(catFilter)allTx=allTx.filter(t=>t.category===catFilter);
+  // Fix: filtro Conta vs Cartão específico do gráfico de categorias
+  const sourceFilter=document.getElementById('chart1-source-filter')?.value||'';
+  if(sourceFilter==='account')allTx=allTx.filter(t=>t.type==='debit'||t.type==='account');
+  else if(sourceFilter==='card')allTx=allTx.filter(t=>t.type==='credit'||t.type==='card');
 
   // Chart 1: categories sorted by value descending
   const catTotals={};
@@ -1999,9 +2047,10 @@ function chartColors() {
   };
 }
 function renderTxGroupedByInvoice(txs) {
-  const closingDay=state.settings.closingDay||22;
   const groups={};
   for(const t of txs){
+    // Usa o fechamento do cartão específico dessa transação (cada uma pode ser de um cartão diferente)
+    const closingDay=getCardClosingDay(t.creditCardId);
     const inv=getInvoiceMonthForDate(t.date,closingDay);
     (groups[inv]=groups[inv]||[]).push(t);
   }
@@ -2107,7 +2156,7 @@ function renderCardSelectorTabs() {
   if(cards.length===0){el.classList.add('hidden');el.innerHTML='';return;}
   el.classList.remove('hidden');
   const selected=getSelectedCardId();
-  el.innerHTML=cards.map(c=>`<button class="btn ${c.id===selected?'btn-primary':'btn-ghost'} btn-sm" style="white-space:nowrap;flex-shrink:0" onclick="selectCreditCard('${c.id}')"><i class="fa-solid ${c.icon||'fa-credit-card'}"></i> ${escHtml(c.name)}</button>`).join('');
+  el.innerHTML=cards.map(c=>`<button class="btn ${c.id===selected?'btn-primary':'btn-ghost'} btn-sm" style="white-space:nowrap;flex-shrink:0;gap:6px" onclick="selectCreditCard('${c.id}')">${entityLogoImg(c,16)} ${escHtml(c.name)}</button>`).join('');
 }
 
 function selectCreditCard(cardId) {
@@ -2119,12 +2168,12 @@ function selectCreditCard(cardId) {
    CARD PAGE
 ============================================================ */
 function renderCardPage() {
-  const closingDay=state.settings.closingDay||22;
-  // Seletor de cartões (só aparece se houver cartões cadastrados; senão comportamento antigo, sem filtro)
+  // Seletor de cartões (sempre existe ao menos um cartão, após a migração do cartão legado)
   renderCardSelectorTabs();
   const cardId=getSelectedCardId();
+  const closingDay=getCardClosingDay(cardId);
 
-  const openYm=getOpenInvoiceMonth();
+  const openYm=getOpenInvoiceMonth(cardId);
   const closedYm=prevInvoiceMonth(openYm);
   const closedTotal=getInvoiceTotal(closedYm,cardId);
   const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
@@ -2207,7 +2256,7 @@ function renderInvoicesPage() {
   listEl.innerHTML='<div class="pt-2">'+months.map(ym=>{
     const total=getInvoiceTotal(ym,cardId);
     const paid=state.invoicePaid?.[invoiceKey(ym,cardId)];
-    const isFuture=ym>getOpenInvoiceMonth();
+    const isFuture=ym>getOpenInvoiceMonth(cardId);
     const color=paid?'var(--green)':isFuture?'var(--text-muted)':'var(--red)';
     return `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border)">
       <div><div class="text-sm font-semibold" style="color:var(--text)">${monthLabel(ym)}</div>
@@ -2282,8 +2331,7 @@ function runSimulation() {
   const n=parseInt(document.getElementById('sim-installments')?.value)||1;
   const startDate=document.getElementById('sim-start-date')?.value||todayStr();
   if(!total||total<=0||n<1){toast('Preencha valor e parcelas válidos','error');return;}
-  const closingDay=state.settings.closingDay||22;
-  const parcelValue=total/n;
+  const closingDay=getCardClosingDay(getSelectedCardId());
   const simByInvoice={};
   for(let i=0;i<n;i++){
     const [y,m,d]=startDate.split('-').map(Number);
@@ -2302,10 +2350,10 @@ function runSimulation() {
 function renderInstallmentsCard() {
   const el=document.getElementById('card-installments-list');
   if(!el)return;
-  const closingDay=state.settings.closingDay||22;
   const cardId=getSelectedCardId();
+  const closingDay=getCardClosingDay(cardId);
   // Fatura atual (a que está sendo exibida no topo da página de cartão)
-  const openYm=getOpenInvoiceMonth();
+  const openYm=getOpenInvoiceMonth(cardId);
   const closedYm=prevInvoiceMonth(openYm);
   const closedPaid=state.invoicePaid?.[invoiceKey(closedYm,cardId)];
   const currentInvoiceYm=(getInvoiceTotal(closedYm,cardId)>0&&!closedPaid)?closedYm:openYm;
@@ -2819,7 +2867,7 @@ function renderAccountsList() {
     const isCustom=!!(a._custom);
     const removeBtn=isCustom?`<button class="btn btn-ghost btn-icon" style="width:26px;height:26px" onclick="removeAccount('${a.id}')"><i class="fa-solid fa-trash text-xs" style="color:var(--red)"></i></button>`:'';
     return `<div class="flex items-center gap-2 mb-2">
-      <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${a.color}22"><i class="fa-solid ${a.icon} text-xs" style="color:${a.color}"></i></div>
+      ${entityLogoImg(a,28)}
       <span class="text-sm flex-1" style="color:var(--text)">${a.label}</span>
       ${removeBtn}
     </div>`;
@@ -2831,7 +2879,7 @@ function renderCreditCardsList() {
   if(!state.creditCards)state.creditCards=[];
   if(state.creditCards.length===0){el.innerHTML='<div class="text-xs" style="color:var(--text-muted)">Nenhum cartão adicionado.</div>';return;}
   el.innerHTML=state.creditCards.map(c=>`<div class="flex items-center gap-2 mb-2">
-    <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${c.color||'#a855f7'}22"><i class="fa-solid ${c.icon||'fa-credit-card'} text-xs" style="color:${c.color||'#a855f7'}"></i></div>
+    ${entityLogoImg(c,28)}
     <span class="text-sm flex-1" style="color:var(--text)">${escHtml(c.name)}</span>
     <span class="text-xs" style="color:var(--text-muted)">**** ${c.last4||'0000'}</span>
     <button class="btn btn-ghost btn-icon" style="width:26px;height:26px" onclick="openEditCreditCard('${c.id}')"><i class="fa-solid fa-pen text-xs" style="color:var(--blue)"></i></button>
@@ -2872,6 +2920,12 @@ function _bankLogoImg(bank,size=28) {
   // Google Favicon Service: retorna PNG 64px do ícone oficial do banco
   const src=`https://www.google.com/s2/favicons?domain=${bank.domain}&sz=64`;
   return wrap(`<img src="${src}" width="${isz}" height="${isz}" alt="${bank.label}" style="border-radius:4px" onerror="this.style.display='none';this.parentNode.querySelector('i').style.display='inline'"/><i class="fa-solid ${bank.icon}" style="display:none;color:${bank.color};font-size:${fsz}px"></i>`);
+}
+
+// Mesmo visual do _bankLogoImg, mas para qualquer conta (ACCOUNT_TYPES) ou cartão (state.creditCards),
+// que usam `label` OU `name` para o texto e podem ter `domain` (logo real) já salvo neles.
+function entityLogoImg(entity, size=28) {
+  return _bankLogoImg({icon:entity.icon||'fa-building-columns',color:entity.color||'#64748b',domain:entity.domain,label:entity.label||entity.name||''}, size);
 }
 
 // Ícones FA disponíveis para o picker "Outros"
@@ -3006,7 +3060,7 @@ function _pickerConfirmOthers() {
   } else {
     const last4=(document.getElementById('picker-last4-input')?.value||'').replace(/\D/g,'').slice(-4)||'0000';
     if(!state.creditCards)state.creditCards=[];
-    state.creditCards.push({id:uid(),name,last4,color,icon});
+    state.creditCards.push({id:uid(),name,last4,color,icon,closingDay:state.settings.closingDay||22});
     closeGenericPicker();
     saveState();renderCreditCardsList();toast(`Cartão "${name}" adicionado!`);
   }
@@ -3019,17 +3073,17 @@ function _pickerConfirm() {
   if(!name){nameEl?.focus();return;}
   if(_pickerMode==='account'){
     const id='acc_'+b.id+'_'+Date.now().toString(36);
-    const newAcc={id,label:name,icon:b.icon,color:b.color,_custom:true};
+    const newAcc={id,label:name,icon:b.icon,color:b.color,domain:b.domain,_custom:true};
     ACCOUNT_TYPES.push(newAcc);
     if(!state.customAccounts)state.customAccounts=[];
-    state.customAccounts.push({id,label:name,icon:b.icon,color:b.color});
+    state.customAccounts.push({id,label:name,icon:b.icon,color:b.color,domain:b.domain});
     closeGenericPicker();
     saveState();populateAccountSelects();renderAccountsList();
     toast(`Conta "${name}" adicionada!`);
   } else {
     const last4=(document.getElementById('picker-last4-input')?.value||'').replace(/\D/g,'').slice(-4)||'0000';
     if(!state.creditCards)state.creditCards=[];
-    state.creditCards.push({id:uid(),name,last4,color:b.color,icon:b.icon});
+    state.creditCards.push({id:uid(),name,last4,color:b.color,icon:b.icon,domain:b.domain,closingDay:state.settings.closingDay||22});
     closeGenericPicker();
     saveState();renderCreditCardsList();toast(`Cartão "${name}" adicionado!`);
   }
@@ -3085,7 +3139,7 @@ let _editCardTemp=null;
 
 function openEditCreditCard(id) {
   const card=state.creditCards.find(c=>c.id===id);if(!card)return;
-  _editCardTemp={id,name:card.name,last4:card.last4||'',color:card.color||'#a855f7',icon:card.icon||'fa-credit-card'};
+  _editCardTemp={id,name:card.name,last4:card.last4||'',color:card.color||'#a855f7',icon:card.icon||'fa-credit-card',domain:card.domain,closingDay:card.closingDay||state.settings.closingDay||22};
   renderEditCreditCardModal();
   openModal('edit-credit-card');
 }
@@ -3095,10 +3149,9 @@ function renderEditCreditCardModal() {
   document.getElementById('edit-cc-id').value=_editCardTemp.id;
   document.getElementById('edit-cc-name').value=_editCardTemp.name;
   document.getElementById('edit-cc-last4').value=_editCardTemp.last4;
+  document.getElementById('edit-cc-closing-day').value=_editCardTemp.closingDay;
   const prev=document.getElementById('edit-cc-icon-preview');
-  const prevI=document.getElementById('edit-cc-icon-preview-i');
-  if(prev)prev.style.background=(_editCardTemp.color||'#a855f7')+'22';
-  if(prevI){prevI.className=`fa-solid ${_editCardTemp.icon}`;prevI.style.color=_editCardTemp.color;}
+  if(prev)prev.innerHTML=entityLogoImg(_editCardTemp,40);
 }
 
 function openEditCreditCardBankPicker() {
@@ -3106,6 +3159,7 @@ function openEditCreditCardBankPicker() {
   // Preserva o que já foi digitado antes de trocar de tela
   const nameEl=document.getElementById('edit-cc-name');if(nameEl)_editCardTemp.name=nameEl.value;
   const last4El=document.getElementById('edit-cc-last4');if(last4El)_editCardTemp.last4=last4El.value;
+  const closingEl=document.getElementById('edit-cc-closing-day');if(closingEl)_editCardTemp.closingDay=parseInt(closingEl.value)||_editCardTemp.closingDay;
   closeModal('edit-credit-card');
   const bankItems=BANK_ICONS.filter(b=>!b.isOthers).map(b=>`
     <button class="card flex items-center gap-2 text-left" style="padding:10px;cursor:pointer;border:1px solid var(--border)" onclick="_pickerSelectIconOnly('${b.id}')">
@@ -3129,13 +3183,13 @@ function openEditCreditCardBankPicker() {
 
 function _pickerSelectIconOnly(bankId) {
   const b=BANK_ICONS.find(x=>x.id===bankId);if(!b||!_editCardTemp)return;
-  _editCardTemp.icon=b.icon;_editCardTemp.color=b.color;
+  _editCardTemp.icon=b.icon;_editCardTemp.color=b.color;_editCardTemp.domain=b.domain;
   closeGenericPicker();openModal('edit-credit-card');renderEditCreditCardModal();
 }
 
 function _pickerSelectCustomIconOnly(icon) {
   if(!_editCardTemp)return;
-  _editCardTemp.icon=icon;
+  _editCardTemp.icon=icon;_editCardTemp.domain=undefined; // ícone manual não tem logo real associado
   closeGenericPicker();openModal('edit-credit-card');renderEditCreditCardModal();
 }
 
@@ -3144,12 +3198,15 @@ function saveEditCreditCard() {
   const card=state.creditCards.find(c=>c.id===_editCardTemp.id);if(!card)return;
   const name=document.getElementById('edit-cc-name').value.trim();
   if(!name){toast('Informe o nome do cartão','error');return;}
+  const closingDay=parseInt(document.getElementById('edit-cc-closing-day').value)||22;
   card.name=name;
   card.last4=(document.getElementById('edit-cc-last4').value||'').replace(/\D/g,'').slice(-4);
   card.color=_editCardTemp.color;
   card.icon=_editCardTemp.icon;
+  card.domain=_editCardTemp.domain;
+  card.closingDay=Math.min(28,Math.max(1,closingDay));
   _editCardTemp=null;
-  saveState();closeModal('edit-credit-card');renderCreditCardsList();renderCardSelectorTabs();
+  saveState();closeModal('edit-credit-card');renderCreditCardsList();renderCardSelectorTabs();renderCardPage();
   toast('Cartão atualizado!');
 }
 
@@ -3204,7 +3261,17 @@ async function clearAllDataWithPin() {
   clearAllData();
 }
 
-const CAT_ICON_SUGGESTIONS=['fa-star','fa-heart','fa-bolt','fa-car','fa-plane','fa-home','fa-baby','fa-dog','fa-dumbbell','fa-gamepad','fa-music','fa-book','fa-shirt','fa-gift','fa-cocktail','fa-film','fa-leaf','fa-briefcase','fa-graduation-cap','fa-stethoscope','fa-tools','fa-paint-brush','fa-bicycle','fa-coffee','fa-sun','fa-moon'];
+const CAT_ICON_SUGGESTIONS=[
+  'fa-star','fa-heart','fa-bolt','fa-car','fa-plane','fa-home','fa-baby','fa-dog','fa-cat','fa-dumbbell','fa-gamepad','fa-music','fa-book','fa-shirt','fa-gift','fa-cocktail','fa-film','fa-leaf','fa-briefcase','fa-graduation-cap','fa-stethoscope','fa-tools','fa-paint-brush','fa-bicycle','fa-coffee','fa-sun','fa-moon',
+  'fa-cart-shopping','fa-basket-shopping','fa-utensils','fa-pizza-slice','fa-burger','fa-mug-hot','fa-glass-martini','fa-bus','fa-train','fa-taxi','fa-gas-pump','fa-charging-station','fa-motorcycle','fa-ship','fa-suitcase','fa-umbrella-beach','fa-hotel','fa-campground','fa-map-location-dot',
+  'fa-house-chimney','fa-house-medical','fa-couch','fa-plug','fa-broom','fa-hammer','fa-screwdriver-wrench','fa-shower','fa-lightbulb','fa-fire',
+  'fa-briefcase-medical','fa-pills','fa-tooth','fa-hand-holding-heart','fa-glasses','fa-spa','fa-scissors','fa-syringe',
+  'fa-pen','fa-palette','fa-camera','fa-microphone','fa-headphones','fa-tv','fa-mobile-screen','fa-laptop','fa-desktop','fa-print','fa-wifi',
+  'fa-child','fa-children','fa-puzzle-piece','fa-teddy-bear','fa-school',
+  'fa-futbol','fa-basketball','fa-volleyball','fa-golf-ball-tee','fa-swimmer','fa-person-running','fa-person-hiking',
+  'fa-piggy-bank','fa-wallet','fa-credit-card','fa-coins','fa-sack-dollar','fa-hand-holding-dollar','fa-percent','fa-receipt','fa-file-invoice-dollar','fa-chart-line','fa-landmark',
+  'fa-paw','fa-fish','fa-seedling','fa-tree','fa-hands-holding-child','fa-church','fa-people-group'
+];
 
 function canArchiveCategory(id) {
   const ym = state.currentMonth;
@@ -4053,33 +4120,38 @@ function showDueNotifications() {
     }
   }
 
-  // Fechamento e vencimento da fatura do cartão
-  const closingDay = state.settings.closingDay||22;
-  const dueDay = closingDay + 7; // vencimento = fechamento + 7 dias
-  // Verificar mês atual e próximo para cobrir virada de mês
-  for(const monthOffset of [0,1]){
-    const refDate = new Date(ty,tm-1+monthOffset,1);
-    const refYear = refDate.getFullYear();
-    const refMonth = refDate.getMonth()+1;
-    const refYm = `${refYear}-${String(refMonth).padStart(2,'0')}`;
-    // Data de fechamento
-    const closingDateStr = `${refYear}-${String(refMonth).padStart(2,'0')}-${String(closingDay).padStart(2,'0')}`;
-    // Data de vencimento (pode cair no mês seguinte se dueDay > 28)
-    const dueRaw = new Date(refYear,refMonth-1,dueDay);
-    const dueDateStr = `${dueRaw.getFullYear()}-${String(dueRaw.getMonth()+1).padStart(2,'0')}-${String(dueRaw.getDate()).padStart(2,'0')}`;
-    // Fatura que fecha nessa data
-    const invoiceYm = prevInvoiceMonth(refYm); // a fatura que fecha é a do mês anterior ao ciclo
-    const closingTotal = getInvoiceTotal(invoiceYm);
-    const closingPaid = state.invoicePaid?.[invoiceYm];
-    if(closingTotal>0 && !closingPaid){
-      if(closingDateStr===today)
-        items.push({type:'today',icon:'fa-credit-card',color:'var(--red)',text:`Hoje é o <strong>fechamento da fatura</strong> (${fmt(closingTotal)}). Novas compras entram na próxima fatura.`});
-      else if(closingDateStr===tomorrow)
-        items.push({type:'tomorrow',icon:'fa-credit-card',color:'var(--yellow)',text:`Amanhã fecha a <strong>fatura do cartão</strong> (${fmt(closingTotal)}).`});
-      if(dueDateStr===today)
-        items.push({type:'today',icon:'fa-calendar-check',color:'var(--red)',text:`Hoje é o <strong>vencimento da fatura</strong> (${fmt(closingTotal)}). Pague para evitar juros.`});
-      else if(dueDateStr===tomorrow)
-        items.push({type:'tomorrow',icon:'fa-calendar-check',color:'var(--yellow)',text:`Amanhã vence a <strong>fatura do cartão</strong> (${fmt(closingTotal)}).`});
+  // Fechamento e vencimento da fatura do cartão — verifica cada cartão cadastrado com seu próprio fechamento
+  const cardsForNotif = (state.creditCards&&state.creditCards.length>0) ? state.creditCards : [null];
+  for(const card of cardsForNotif){
+    const cardId = card?.id;
+    const closingDay = getCardClosingDay(cardId);
+    const dueDay = closingDay + 7; // vencimento = fechamento + 7 dias
+    const cardLabel = card ? ` (${escHtml(card.name)})` : '';
+    // Verificar mês atual e próximo para cobrir virada de mês
+    for(const monthOffset of [0,1]){
+      const refDate = new Date(ty,tm-1+monthOffset,1);
+      const refYear = refDate.getFullYear();
+      const refMonth = refDate.getMonth()+1;
+      const refYm = `${refYear}-${String(refMonth).padStart(2,'0')}`;
+      // Data de fechamento
+      const closingDateStr = `${refYear}-${String(refMonth).padStart(2,'0')}-${String(closingDay).padStart(2,'0')}`;
+      // Data de vencimento (pode cair no mês seguinte se dueDay > 28)
+      const dueRaw = new Date(refYear,refMonth-1,dueDay);
+      const dueDateStr = `${dueRaw.getFullYear()}-${String(dueRaw.getMonth()+1).padStart(2,'0')}-${String(dueRaw.getDate()).padStart(2,'0')}`;
+      // Fatura que fecha nessa data
+      const invoiceYm = prevInvoiceMonth(refYm); // a fatura que fecha é a do mês anterior ao ciclo
+      const closingTotal = getInvoiceTotal(invoiceYm,cardId);
+      const closingPaid = state.invoicePaid?.[invoiceKey(invoiceYm,cardId)];
+      if(closingTotal>0 && !closingPaid){
+        if(closingDateStr===today)
+          items.push({type:'today',icon:'fa-credit-card',color:'var(--red)',text:`Hoje é o <strong>fechamento da fatura${cardLabel}</strong> (${fmt(closingTotal)}). Novas compras entram na próxima fatura.`});
+        else if(closingDateStr===tomorrow)
+          items.push({type:'tomorrow',icon:'fa-credit-card',color:'var(--yellow)',text:`Amanhã fecha a <strong>fatura do cartão${cardLabel}</strong> (${fmt(closingTotal)}).`});
+        if(dueDateStr===today)
+          items.push({type:'today',icon:'fa-calendar-check',color:'var(--red)',text:`Hoje é o <strong>vencimento da fatura${cardLabel}</strong> (${fmt(closingTotal)}). Pague para evitar juros.`});
+        else if(dueDateStr===tomorrow)
+          items.push({type:'tomorrow',icon:'fa-calendar-check',color:'var(--yellow)',text:`Amanhã vence a <strong>fatura do cartão${cardLabel}</strong> (${fmt(closingTotal)}).`});
+      }
     }
   }
 
