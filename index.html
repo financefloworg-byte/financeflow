@@ -1837,18 +1837,17 @@ function txItemHTML(t,clickable=true) {
   const sign=income?'+':'-';
   const installBadge=t._installmentOf?`<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);font-size:10px">${t._part}/${t._total}</span>`:'';
   const onclick=clickable?(t.isRecurring?`onclick="openEditRecurringFromTx('${t.id}')"`:`onclick="openEditTx('${t.id}')"`):'';
-  // Conta: conta corrente só ícone; demais contas ícone + nome curto
+  // Conta: apenas o símbolo, sem o nome
   const accInfo=t.accountId?ACCOUNT_TYPES.find(a=>a.id===t.accountId):null;
   let accBadge='';
   if(accInfo){
-    const showName=t.accountId!=='contacorrente';
-    accBadge=`<span class="badge" style="background:${accInfo.color}22;color:${accInfo.color}">${entityLogoImg(accInfo,14)}${showName?accInfo.label:''}</span>`;
+    accBadge=`<span class="badge" style="background:${accInfo.color}22;color:${accInfo.color}">${entityLogoImg(accInfo,14)}</span>`;
   }
-  // Cartão: mostra o logo e o nome do cartão específico usado nessa compra, quando conhecido
+  // Cartão: apenas o símbolo do cartão específico usado nessa compra, sem o nome
   const cardInfo=(isCard&&t.creditCardId)?state.creditCards?.find(cc=>cc.id===t.creditCardId):null;
   const cardBadge=isCard
     ? (cardInfo
-        ? `<span class="badge" style="background:${cardInfo.color||'#a855f7'}22;color:${cardInfo.color||'#a855f7'}">${entityLogoImg(cardInfo,14)}${escHtml(cardInfo.name)}</span>`
+        ? `<span class="badge" style="background:${cardInfo.color||'#a855f7'}22;color:${cardInfo.color||'#a855f7'}">${entityLogoImg(cardInfo,14)}</span>`
         : `<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple)"><i class="fa-solid fa-credit-card text-xs"></i></span>`)
     : '';
   const recurIcon=t.isRecurring?`<i class="fa-solid fa-rotate text-xs ml-1" style="color:var(--blue)"></i>`:'';
