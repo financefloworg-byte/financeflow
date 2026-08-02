@@ -268,6 +268,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
   </div>
   <div class="p-3 border-t" style="border-color:var(--border)">
     <div id="auth-user-info" class="text-xs mb-2 truncate" style="color:var(--text-muted)"></div>
+    <button class="btn btn-ghost w-full text-xs mb-2" id="btn-save-firebase" onclick="saveToFirebase()"><i class="fa-solid fa-cloud-arrow-up mr-1" style="color:var(--green)"></i> Salvar</button>
     <button class="btn btn-ghost w-full text-xs" onclick="authSignOut()"><i class="fa-solid fa-right-from-bracket mr-1" style="color:var(--red)"></i> Sair</button>
   </div>
 </nav>
@@ -756,7 +757,6 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
         <!-- Configurações gerais -->
         <div class="card mb-4">
           <h4 class="font-semibold text-white mb-3 text-sm">Configurações Gerais</h4>
-          <div class="mb-4"><label class="label">Dia de fechamento da fatura</label><input type="number" class="input" id="closing-day" min="1" max="28" placeholder="Ex: 22"/><p class="helper-text">O vencimento será 7 dias após o fechamento.</p></div>
           <div class="mb-4"><label class="label">Saldo inicial da conta (R$)</label><input type="text" class="input" id="initial-balance" placeholder="Ex: 1.500,00" oninput="formatAmountInput(this)" inputmode="decimal"/></div>
           <button class="btn btn-primary btn-sm" onclick="saveSettings()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
         </div>
@@ -2257,10 +2257,14 @@ function renderInvoicesPage() {
     const paid=state.invoicePaid?.[invoiceKey(ym,cardId)];
     const isFuture=ym>getOpenInvoiceMonth(cardId);
     const color=paid?'var(--green)':isFuture?'var(--text-muted)':'var(--red)';
+    const undoBtn=paid?`<button class="btn btn-ghost btn-icon" style="width:26px;height:26px" title="Desfazer pagamento" onclick="unpayInvoiceForYm('${ym}','${cardId||''}')"><i class="fa-solid fa-rotate-left text-xs" style="color:var(--red)"></i></button>`:'';
     return `<div class="flex items-center justify-between py-2" style="border-bottom:1px solid var(--border)">
       <div><div class="text-sm font-semibold" style="color:var(--text)">${monthLabel(ym)}</div>
       <div class="text-xs" style="color:var(--text-muted)">${paid?'Paga':'Pendente'}${isFuture?' · Futura':''}</div></div>
-      <div class="text-sm font-bold" style="color:${color}">${fmt(total)}</div>
+      <div class="flex items-center gap-2">
+        <div class="text-sm font-bold" style="color:${color}">${fmt(total)}</div>
+        ${undoBtn}
+      </div>
     </div>`;
   }).join('')+'</div>';
 }
@@ -2444,15 +2448,18 @@ function confirmPayInvoice() {
   toast(`Fatura de ${monthLabel(ym)} paga! ${fmt(total)} debitado.`);
 }
 
-function unpayInvoice() {
-  const ym=currentCardInvoiceYm||state.currentMonth;
-  const cardId=getSelectedCardId();
+function unpayInvoiceForYm(ym, cardId) {
   const key=invoiceKey(ym,cardId);
   const paid=state.invoicePaid?.[key];
-  if(!paid||!confirm('Desfazer pagamento da fatura?'))return;
+  if(!paid||!confirm(`Desfazer pagamento da fatura de ${monthLabel(ym)}?`))return;
   adjustAccountBalance(paid.accountId, paid.amount);
   delete state.invoicePaid[key];
-  saveState();renderCardPage();toast('Pagamento desfeito.','info');
+  saveState();refreshPage(currentPage);toast('Pagamento desfeito.','info');
+}
+
+function unpayInvoice() {
+  const ym=currentCardInvoiceYm||state.currentMonth;
+  unpayInvoiceForYm(ym, getSelectedCardId());
 }
 
 /* ============================================================
@@ -2849,7 +2856,6 @@ function openSettingsSection(section) {
   if(section==='categories') renderLimitsList();
   if(section==='appearance') renderChartVisibilityList();
   if(section==='card-account'){
-    document.getElementById('closing-day').value=state.settings.closingDay||22;
     const ib=state.settings.initialBalance||0;
     document.getElementById('initial-balance').value=ib.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     renderAccountsList();
@@ -3420,7 +3426,6 @@ function applyTheme(t){
 }
 
 function saveSettings() {
-  state.settings.closingDay=parseInt(document.getElementById('closing-day').value)||22;
   const newBal=parseBRL(document.getElementById('initial-balance').value)||0;
   state.settings.initialBalance=newBal;
   saveState();toast('Configurações salvas!');
