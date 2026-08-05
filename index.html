@@ -649,6 +649,10 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 
       <!-- Fatura (cartão) -->
       <div id="import-dropzone-invoice">
+        <div class="mb-4">
+          <label class="label">De qual cartão é essa fatura?</label>
+          <select class="select" id="import-invoice-card"></select>
+        </div>
         <div class="border-2 border-dashed rounded-xl p-8 text-center mb-4" style="border-color:var(--border)">
           <i class="fa-solid fa-file-csv text-4xl mb-3" style="color:var(--text-muted)"></i>
           <p class="text-sm font-semibold text-white mb-1">Arraste o CSV aqui ou clique para selecionar</p>
@@ -999,6 +1003,24 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
   </div>
 </div>
 
+<!-- EDIT INSTALLMENT GROUP -->
+<div id="modal-edit-installment" class="modal-overlay">
+  <div class="modal-box">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-bold text-white text-lg"><i class="fa-solid fa-layer-group mr-2" style="color:var(--purple)"></i>Editar Compra Parcelada</h2>
+      <button class="btn btn-ghost btn-icon" onclick="closeModal('edit-installment')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="edit-inst-group-id"/>
+    <p class="text-xs mb-4" style="color:var(--text-muted)" id="edit-inst-info"></p>
+    <div class="mb-3"><label class="label">Nome da compra</label><input type="text" class="input" id="edit-inst-name"/></div>
+    <div class="mb-4"><label class="label">Valor total (R$)</label><input type="text" class="input" id="edit-inst-total" placeholder="Ex: 1.200,00" oninput="formatAmountInput(this)" inputmode="decimal"/><p class="helper-text">O valor será dividido igualmente entre todas as parcelas.</p></div>
+    <div class="flex gap-2 justify-end">
+      <button class="btn btn-ghost" onclick="closeModal('edit-installment')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditInstallmentGroup()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD RECURRING -->
 <div id="modal-add-recurring" class="modal-overlay">
   <div class="modal-box">
@@ -1065,6 +1087,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 <div id="modal-piggy-withdraw" class="modal-overlay"><div class="modal-box">
   <div class="flex items-center justify-between mb-5"><h2 class="font-bold text-white text-lg">Retirar da Caixinha</h2><button class="btn btn-ghost btn-icon" onclick="closeModal('piggy-withdraw')"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="mb-4"><label class="label">Valor (R$)</label><input type="number" class="input" id="piggy-withdraw-amount" step="0.01" min="0.01" placeholder="0,00"/></div>
+  <div class="mb-4"><label class="label">Creditar na conta</label><select class="select" id="piggy-withdraw-account"></select></div>
   <div class="mb-4"><label class="label">Descrição (opcional)</label><input type="text" class="input" id="piggy-withdraw-desc" placeholder="Ex: Emergência"/></div>
   <div class="flex gap-2 justify-end"><button class="btn btn-ghost" onclick="closeModal('piggy-withdraw')">Cancelar</button><button class="btn btn-danger" onclick="piggyWithdraw()"><i class="fa-solid fa-minus"></i> Retirar</button></div>
 </div></div>
@@ -1319,6 +1342,8 @@ function refreshPage(page) {
     case'import':{
       const sel=document.getElementById('import-statement-account');
       if(sel&&!sel.options.length)sel.innerHTML=ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
+      const cardSel=document.getElementById('import-invoice-card');
+      if(cardSel&&!cardSel.options.length)cardSel.innerHTML=(state.creditCards||[]).map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
       break;
     }
   }
@@ -1537,11 +1562,12 @@ function getAccountBalance(ym, accountId) {
 
 // Fix 9: total across all accounts
 function getTotalBalance(ym) {
-  let total = Number(state.settings.initialBalance)||0;
-  const ab = state.accountBalances||{};
-  for(const val of Object.values(ab)) {
-    total += Number(val||0);
-  }
+  // Deriva sempre de getAllAccountBalances() para garantir que o total bata exatamente com
+  // a soma do detalhamento por conta (antes, saldos "órfãos" — ex. de uma conta excluída —
+  // ainda entravam nesse total mas sumiam do detalhamento, causando divergência).
+  const bals = getAllAccountBalances();
+  let total = 0;
+  for(const v of Object.values(bals)) total += Number(v)||0;
   return total;
 }
 
@@ -1836,7 +1862,7 @@ function txItemHTML(t,clickable=true) {
   const amountColor=income?'var(--green)':'var(--red)';
   const sign=income?'+':'-';
   const installBadge=t._installmentOf?`<span class="badge" style="background:rgba(168,85,247,.15);color:var(--purple);font-size:10px">${t._part}/${t._total}</span>`:'';
-  const onclick=clickable?(t.isRecurring?`onclick="openEditRecurringFromTx('${t.id}')"`:`onclick="openEditTx('${t.id}')"`):'';
+  const onclick=clickable?(t.isRecurring?`onclick="openEditRecurringFromTx('${t.id}')"`:t._installmentOf?`onclick="openEditInstallmentGroup('${t._installmentOf}')"`:`onclick="openEditTx('${t.id}')"`):'';
   // Conta: apenas o símbolo, sem o nome
   const accInfo=t.accountId?ACCOUNT_TYPES.find(a=>a.id===t.accountId):null;
   let accBadge='';
@@ -2335,6 +2361,7 @@ function runSimulation() {
   const startDate=document.getElementById('sim-start-date')?.value||todayStr();
   if(!total||total<=0||n<1){toast('Preencha valor e parcelas válidos','error');return;}
   const closingDay=getCardClosingDay(getSelectedCardId());
+  const parcelValue=total/n;
   const simByInvoice={};
   for(let i=0;i<n;i++){
     const [y,m,d]=startDate.split('-').map(Number);
@@ -2365,7 +2392,7 @@ function renderInstallmentsCard() {
   for(const tx of state.transactions){
     if(tx.type!=='credit'||!tx._installmentOf)continue;
     if(!txMatchesCard(tx,cardId))continue;
-    if(!groups[tx._installmentOf])groups[tx._installmentOf]={txs:[],description:''};
+    if(!groups[tx._installmentOf])groups[tx._installmentOf]={txs:[],description:'',groupId:tx._installmentOf};
     groups[tx._installmentOf].txs.push(tx);
     groups[tx._installmentOf].description=tx.description.replace(/\s+\d+\/\d+$/,'');
   }
@@ -2404,7 +2431,7 @@ function renderInstallmentsCard() {
     const statusText=isFinished?'Quitada':`${remaining}x restante${remaining>1?'s':''}`;
     // Valor da parcela (da fatura atual)
     const currentParcel=pendingTxs[0]||first;
-    return `<div class="tx-item" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px">
+    return `<div class="tx-item" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px;cursor:pointer" onclick="openEditInstallmentGroup('${g.groupId}')">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <div class="tx-icon" style="background:rgba(168,85,247,.15)"><i class="fa-solid fa-credit-card" style="color:var(--purple)"></i></div>
@@ -2828,10 +2855,18 @@ function piggyWithdraw(){
   const box=getCurrentSavingsBox();if(!box)return;
   const amount=parseFloat(document.getElementById('piggy-withdraw-amount').value);
   const desc=document.getElementById('piggy-withdraw-desc').value.trim();
+  const accountId=document.getElementById('piggy-withdraw-account')?.value||'contacorrente';
   if(!amount||amount<=0){toast('Informe um valor válido','error');return;}
   if(amount>box.balance){toast('Saldo insuficiente na caixinha','error');return;}
   box.balance-=amount;
   box.history.push({id:uid(),type:'withdraw',amount,desc,date:todayStr()});
+  // Fix: retirar da caixinha deve devolver o valor ao saldo em conta (simétrico ao depósito,
+  // que debita a conta). Antes, o dinheiro "sumia" do saldo total ao ser retirado.
+  state.transactions.push({
+    id:uid(),type:'income',description:`Retirada - ${box.name}`,amount,date:todayStr(),
+    category:'receita',notes:desc,accountId,_savingsBoxId:box.id
+  });
+  adjustAccountBalance(accountId,amount);
   saveState();closeModal('piggy-withdraw');renderSavings();toast('Retirada realizada!');
 }
 
@@ -3480,7 +3515,7 @@ function openModal(name) {
   }
   if(name==='add-recurring'){document.getElementById('rec-description').value='';document.getElementById('rec-amount').value='';document.getElementById('rec-day').value='';populateAccountSelects();setRecType('account');}
   if(name==='piggy-add'){document.getElementById('piggy-add-amount').value='';document.getElementById('piggy-add-desc').value='';populateAccountSelects();}
-  if(name==='piggy-withdraw'){document.getElementById('piggy-withdraw-amount').value='';document.getElementById('piggy-withdraw-desc').value='';}
+  if(name==='piggy-withdraw'){document.getElementById('piggy-withdraw-amount').value='';document.getElementById('piggy-withdraw-desc').value='';populateAccountSelects();}
   if(name==='piggy-goal'){const box=getCurrentSavingsBox();document.getElementById('piggy-goal-amount').value=box?.goal||'';}
 }
 
@@ -3599,22 +3634,63 @@ function saveEditTransaction() {
   const tx=state.transactions[idx];
   const newAmount=parseBRL(document.getElementById('edit-tx-amount').value)||0;
   const newAccountId=document.getElementById('edit-tx-account')?.value||tx.accountId||'contacorrente';
-  // Fix 10: adjust account balance for debit changes
-  if((tx.type==='debit'||tx.type==='account')&&tx.accountId){
-    // Reverse old debit, apply new debit
-    adjustAccountBalance(tx.accountId, tx.amount); // undo old
-    adjustAccountBalance(newAccountId, -newAmount); // apply new
+  const isDebitTx=(tx.type==='debit'||tx.type==='account');
+  const isIncomeTx=isIncome(tx);
+  // Fix: reconciliar o saldo da conta tanto para despesas quanto para receitas editadas.
+  // Antes, só despesas de conta ajustavam o saldo ao editar — editar uma receita deixava
+  // o saldo "congelado" no valor antigo, causando divergência.
+  if(isDebitTx&&tx.accountId){
+    adjustAccountBalance(tx.accountId, tx.amount); // desfaz o débito antigo
+    adjustAccountBalance(newAccountId, -newAmount); // aplica o novo débito
+  } else if(isIncomeTx&&tx.accountId){
+    adjustAccountBalance(tx.accountId, -tx.amount); // desfaz o crédito antigo
+    adjustAccountBalance(tx.accountId, newAmount); // aplica o novo crédito (conta não é editável para receita aqui)
   }
   state.transactions[idx].description=document.getElementById('edit-tx-description').value.trim();
   state.transactions[idx].amount=newAmount;
   state.transactions[idx].date=document.getElementById('edit-tx-date').value;
   state.transactions[idx].category=document.getElementById('edit-tx-category').value;
   state.transactions[idx].notes=document.getElementById('edit-tx-notes').value.trim();
-  if(tx.type==='debit'||tx.type==='account') state.transactions[idx].accountId=newAccountId;
+  if(isDebitTx) state.transactions[idx].accountId=newAccountId;
   if((tx.type==='credit'||tx.type==='card')&&(state.creditCards||[]).length>0){
     state.transactions[idx].creditCardId=document.getElementById('edit-tx-creditcard')?.value||undefined;
   }
   saveState();closeModal('edit-tx');refreshPage(currentPage);toast('Atualizado!');
+}
+
+// Editar uma compra parcelada como grupo: renomear e/ou mudar o valor total redistribui
+// igualmente entre TODAS as parcelas daquele parcelamento (identificadas por _installmentOf).
+function openEditInstallmentGroup(groupId){
+  const txs=state.transactions.filter(t=>t._installmentOf===groupId);
+  if(txs.length===0)return;
+  const sorted=txs.slice().sort((a,b)=>(a._part||0)-(b._part||0));
+  const baseName=sorted[0].description.replace(/\s+\d+\/\d+$/,'');
+  const total=txs.reduce((s,t)=>s+t.amount,0);
+  const count=sorted[0]._total||txs.length;
+  document.getElementById('edit-inst-group-id').value=groupId;
+  document.getElementById('edit-inst-name').value=baseName;
+  document.getElementById('edit-inst-total').value=total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('edit-inst-info').textContent=`${count} parcelas de ${fmt(total/count)} · alterar aqui afeta todas as parcelas`;
+  openModal('edit-installment');
+}
+
+function saveEditInstallmentGroup(){
+  const groupId=document.getElementById('edit-inst-group-id').value;
+  const newName=document.getElementById('edit-inst-name').value.trim();
+  const newTotal=parseBRL(document.getElementById('edit-inst-total').value);
+  if(!newName){toast('Informe o nome da compra','error');return;}
+  if(!newTotal||newTotal<=0){toast('Informe um valor total válido','error');return;}
+  const idxs=state.transactions.map((t,i)=>t._installmentOf===groupId?i:-1).filter(i=>i!==-1);
+  if(idxs.length===0)return;
+  const count=idxs.length;
+  const newPartAmount=parseFloat((newTotal/count).toFixed(2));
+  idxs.forEach(i=>{
+    const t=state.transactions[i];
+    const part=t._part||1;
+    t.description=`${newName} ${part}/${t._total||count}`;
+    t.amount=newPartAmount;
+  });
+  saveState();closeModal('edit-installment');refreshPage(currentPage);toast('Compra parcelada atualizada em todas as parcelas!');
 }
 
 function deleteTransaction(id){
@@ -3735,7 +3811,7 @@ function populateAllCategorySelects() {
 
 function populateAccountSelects() {
   const opts = ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
-  ['income-account','tx-account','edit-tx-account','pay-invoice-account','pay-rec-account','rec-account','piggy-add-account','debt-account','pay-debt-account'].forEach(id=>{
+  ['income-account','tx-account','edit-tx-account','pay-invoice-account','pay-rec-account','rec-account','piggy-add-account','piggy-withdraw-account','debt-account','pay-debt-account'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.innerHTML=opts;
   });
   populateCreditCardSelects();
@@ -3763,6 +3839,10 @@ function setImportType(type){
   document.getElementById('import-subtitle').textContent=type==='invoice'
     ?'Selecione o arquivo .csv da fatura do cartão para conciliar automaticamente.'
     :'Selecione o arquivo .csv do extrato da conta (receitas e despesas) para conciliar automaticamente.';
+  if(type==='invoice'){
+    const sel=document.getElementById('import-invoice-card');
+    if(sel)sel.innerHTML=(state.creditCards||[]).map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+  }
   if(type==='statement'){
     const sel=document.getElementById('import-statement-account');
     if(sel)sel.innerHTML=ACCOUNT_TYPES.map(a=>`<option value="${a.id}">${a.label}</option>`).join('');
@@ -3846,6 +3926,7 @@ function parseInvoiceCSV(text) {
   const hasHeader=header.includes('date')||header.includes('title')||header.includes('amount');
   const dataLines=hasHeader?lines.slice(1):lines;
   const delimiter=lines[0].includes(';')?';':',';
+  const creditCardId=document.getElementById('import-invoice-card')?.value||undefined;
   importRows=[];
   for(const line of dataLines){
     const cols=splitCSVRow(line,delimiter);
@@ -3860,7 +3941,7 @@ function parseInvoiceCSV(text) {
     if(matchParcela){installBase=matchParcela[1].trim();installPart=parseInt(matchParcela[2]);installTotal=parseInt(matchParcela[3]);}
     else if(matchSlash){installBase=matchSlash[1].trim();installPart=parseInt(matchSlash[2]);installTotal=parseInt(matchSlash[3]);}
     const isDuplicate=state.transactions.some(tx=>tx.description===description&&tx.date===dateRaw&&Math.abs(tx.amount-amount)<0.01);
-    importRows.push({source:'invoice',txType:'credit',date:dateRaw,title,description,amount,isDuplicate,isInstallment:!!installPart,installPart,installTotal,installBase,category:'outros',isRecurring:false,selected:!isDuplicate});
+    importRows.push({source:'invoice',txType:'credit',date:dateRaw,title,description,amount,isDuplicate,isInstallment:!!installPart,installPart,installTotal,installBase,category:'outros',isRecurring:false,creditCardId,selected:!isDuplicate});
   }
   renderImportPreview();
 }
@@ -3963,12 +4044,12 @@ function confirmImport(){
           const partNum=i+1;const desc=`${row.installBase} ${partNum}/${row.installTotal}`;
           const dupCheck=state.transactions.some(tx=>tx.description===desc&&tx.date===txDateStr&&Math.abs(tx.amount-row.amount)<0.01);
           if(dupCheck)continue;
-          state.transactions.push({id:uid(),type:'credit',description:desc,amount:row.amount,date:txDateStr,category:row.category,notes:'Importado via CSV',_installmentOf:groupId,_part:partNum,_total:row.installTotal});
+          state.transactions.push({id:uid(),type:'credit',description:desc,amount:row.amount,date:txDateStr,category:row.category,notes:'Importado via CSV',_installmentOf:groupId,_part:partNum,_total:row.installTotal,creditCardId:row.creditCardId});
         }
       } else if(row.isRecurring){
-        state.recurring.push({id:uid(),type:'card',description:row.description,amount:row.amount,day:parseInt(row.date.slice(8,10))||1,category:row.category,startMonth:row.date.slice(0,7)});
+        state.recurring.push({id:uid(),type:'card',description:row.description,amount:row.amount,day:parseInt(row.date.slice(8,10))||1,category:row.category,startMonth:row.date.slice(0,7),creditCardId:row.creditCardId});
       } else {
-        state.transactions.push({id:uid(),type:'credit',description:row.description,amount:row.amount,date:row.date,category:row.category,notes:'Importado via CSV'});
+        state.transactions.push({id:uid(),type:'credit',description:row.description,amount:row.amount,date:row.date,category:row.category,notes:'Importado via CSV',creditCardId:row.creditCardId});
       }
     } else {
       // Extrato (conta): receitas e despesas afetam o saldo da conta imediatamente
